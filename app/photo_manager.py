@@ -57,6 +57,8 @@ class PhotoManager:
             'gpx_longitude': -360.0,
             'manual_latitude': -360.0,
             'manual_longitude': -360.0,
+            'final_latitude': -360.0,
+            'final_longitude': -360.0,
             'new_name': '',
             'tagged': False
         }
@@ -104,6 +106,10 @@ class PhotoManager:
         # Use creation time if no EXIF capture time
         if info['exif_capture_time'] is None:
             info['exif_capture_time'] = info['creation_time']
+        
+        # Initialize final coordinates with EXIF values
+        info['final_latitude'] = info['exif_latitude']
+        info['final_longitude'] = info['exif_longitude']
         
         return info
     
@@ -161,6 +167,9 @@ class PhotoManager:
         
         self.pd_photo_info.at[index, 'manual_latitude'] = latitude
         self.pd_photo_info.at[index, 'manual_longitude'] = longitude
+        # Update final coordinates to manual values
+        self.pd_photo_info.at[index, 'final_latitude'] = latitude
+        self.pd_photo_info.at[index, 'final_longitude'] = longitude
     
     def delete_manual_location(self, index: int):
         """Delete manual GPS coordinates"""
@@ -169,6 +178,17 @@ class PhotoManager:
         
         self.pd_photo_info.at[index, 'manual_latitude'] = -360.0
         self.pd_photo_info.at[index, 'manual_longitude'] = -360.0
+        
+        # Update final coordinates: fallback to GPX if exists, otherwise EXIF
+        gpx_lat = self.pd_photo_info.at[index, 'gpx_latitude']
+        gpx_lon = self.pd_photo_info.at[index, 'gpx_longitude']
+        
+        if gpx_lat != -360.0 and gpx_lon != -360.0:
+            self.pd_photo_info.at[index, 'final_latitude'] = gpx_lat
+            self.pd_photo_info.at[index, 'final_longitude'] = gpx_lon
+        else:
+            self.pd_photo_info.at[index, 'final_latitude'] = self.pd_photo_info.at[index, 'exif_latitude']
+            self.pd_photo_info.at[index, 'final_longitude'] = self.pd_photo_info.at[index, 'exif_longitude']
     
     def update_gpx_location(self, index: int, latitude: float, longitude: float):
         """Update GPX-matched coordinates"""
@@ -177,6 +197,12 @@ class PhotoManager:
         
         self.pd_photo_info.at[index, 'gpx_latitude'] = latitude
         self.pd_photo_info.at[index, 'gpx_longitude'] = longitude
+        
+        # Update final coordinates to GPX values (only if no manual override)
+        manual_lat = self.pd_photo_info.at[index, 'manual_latitude']
+        if manual_lat == -360.0:  # No manual override
+            self.pd_photo_info.at[index, 'final_latitude'] = latitude
+            self.pd_photo_info.at[index, 'final_longitude'] = longitude
     
     def set_sort_order(self, sort_by: str):
         """Set the sort order and re-sort the DataFrame"""

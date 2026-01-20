@@ -118,7 +118,8 @@ async def update_manual_location(index: int, request: LocationUpdateRequest):
     """Update manual GPS coordinates for a photo"""
     try:
         photo_manager.update_manual_location(index, request.latitude, request.longitude)
-        return {"success": True, "index": index, "latitude": request.latitude, "longitude": request.longitude}
+        photo = photo_manager.get_photo_by_index(index)
+        return {"success": True, "photo": photo}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -128,7 +129,8 @@ async def delete_manual_location(index: int):
     """Delete manual GPS coordinates for a photo"""
     try:
         photo_manager.delete_manual_location(index)
-        return {"success": True, "index": index}
+        photo = photo_manager.get_photo_by_index(index)
+        return {"success": True, "photo": photo}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

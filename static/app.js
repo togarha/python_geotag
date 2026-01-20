@@ -18,7 +18,8 @@ const state = {
     photoMapMarkers: {
         exif: null,
         gpx: null,
-        manual: null
+        manual: null,
+        final: null
     }
 };
 
@@ -551,6 +552,9 @@ function displayPhotoMap(photo, index) {
 }
 
 function displayPhotoMapGoogle(photo, index, mapElement) {
+    // Store current index in state
+    state.currentPhotoIndex = index;
+    
     // Initialize map if not already done
     if (!state.photoMap) {
         state.photoMap = new google.maps.Map(mapElement, {
@@ -558,9 +562,9 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
             zoom: 10
         });
 
-        // Add click listener for manual marker placement
+        // Add click listener for manual marker placement - use state.currentPhotoIndex
         state.photoMap.addListener('click', (e) => {
-            placeManualMarker(e.latLng, index);
+            placeManualMarker(e.latLng, state.currentPhotoIndex);
         });
     }
 
@@ -620,7 +624,7 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
         document.getElementById('gpx-coords').textContent = '--';
     }
 
-    // Manual marker (green)
+    // Manual marker (yellow)
     if (photo.manual_latitude !== -360 && photo.manual_longitude !== -360) {
         state.photoMapMarkers.manual = new google.maps.Marker({
             position: { lat: photo.manual_latitude, lng: photo.manual_longitude },
@@ -629,12 +633,13 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
             draggable: true,
             icon: {
                 path: google.maps.SymbolPath.CIRCLE,
-                fillColor: '#2ecc71',
+                fillColor: '#f1c40f',
                 fillOpacity: 1,
                 strokeColor: '#fff',
                 strokeWeight: 2,
                 scale: 10
-            }
+            },
+            zIndex: 1000  // On top of final marker
         });
         
         // Update on drag
@@ -653,6 +658,31 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
         document.getElementById('delete-manual-marker').disabled = true;
     }
 
+    // Final marker (green, larger)
+    if (photo.final_latitude !== -360 && photo.final_longitude !== -360) {
+        state.photoMapMarkers.final = new google.maps.Marker({
+            position: { lat: photo.final_latitude, lng: photo.final_longitude },
+            map: state.photoMap,
+            title: 'Final Location',
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                fillColor: '#2ecc71',
+                fillOpacity: 0.6,  // More transparent
+                strokeColor: '#fff',
+                strokeWeight: 3,
+                scale: 15  // Larger than manual marker (which is 10)
+            },
+            zIndex: 999  // Below manual marker
+        });
+        bounds.extend(state.photoMapMarkers.final.getPosition());
+        hasMarkers = true;
+        
+        document.getElementById('final-coords').textContent = 
+            `${photo.final_latitude.toFixed(6)}, ${photo.final_longitude.toFixed(6)}`;
+    } else {
+        document.getElementById('final-coords').textContent = '--';
+    }
+
     // Center map on markers without changing zoom (only on first load)
     if (hasMarkers) {
         // Pan to center of bounds without zooming
@@ -665,6 +695,9 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
 }
 
 function displayPhotoMapOSM(photo, index, mapElement) {
+    // Store current index in state
+    state.currentPhotoIndex = index;
+    
     // Initialize map if not already done
     if (!state.photoMap) {
         state.photoMap = L.map(mapElement).setView([39.4699, -0.3763], 10);
@@ -675,9 +708,9 @@ function displayPhotoMapOSM(photo, index, mapElement) {
             maxZoom: 19
         }).addTo(state.photoMap);
         
-        // Add click listener for manual marker placement
+        // Add click listener for manual marker placement - use state.currentPhotoIndex
         state.photoMap.on('click', (e) => {
-            placeManualMarker(e.latlng, index);
+            placeManualMarker(e.latlng, state.currentPhotoIndex);
         });
     }
 
@@ -732,7 +765,7 @@ function displayPhotoMapOSM(photo, index, mapElement) {
         document.getElementById('gpx-coords').textContent = '--';
     }
 
-    // Manual marker (green, draggable)
+    // Manual marker (yellow, draggable)
     if (photo.manual_latitude !== -360 && photo.manual_longitude !== -360) {
         state.photoMapMarkers.manual = L.marker(
             [photo.manual_latitude, photo.manual_longitude],
@@ -740,7 +773,7 @@ function displayPhotoMapOSM(photo, index, mapElement) {
                 draggable: true,
                 icon: L.divIcon({
                     className: 'manual-marker',
-                    html: '<div style="background-color: #2ecc71; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff;"></div>',
+                    html: '<div style="background-color: #f1c40f; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff;"></div>',
                     iconSize: [20, 20],
                     iconAnchor: [10, 10]
                 })
@@ -760,6 +793,29 @@ function displayPhotoMapOSM(photo, index, mapElement) {
     } else {
         document.getElementById('manual-coords').textContent = '--';
         document.getElementById('delete-manual-marker').disabled = true;
+    }
+
+    // Final marker (green, larger)
+    if (photo.final_latitude !== -360 && photo.final_longitude !== -360) {
+        state.photoMapMarkers.final = L.circleMarker(
+            [photo.final_latitude, photo.final_longitude],
+            {
+                radius: 15,  // Larger than manual marker
+                fillColor: '#2ecc71',
+                color: '#fff',
+                weight: 3,
+                opacity: 1,
+                fillOpacity: 0.6,  // More transparent to show manual marker on top
+                pane: 'markerPane'  // Ensure it's in the right pane
+            }
+        ).bindTooltip('Final Location').addTo(state.photoMap);
+        
+        bounds.push([photo.final_latitude, photo.final_longitude]);
+        
+        document.getElementById('final-coords').textContent = 
+            `${photo.final_latitude.toFixed(6)}, ${photo.final_longitude.toFixed(6)}`;
+    } else {
+        document.getElementById('final-coords').textContent = '--';
     }
 
     // Center map on markers without changing zoom (only on first load)
@@ -782,57 +838,56 @@ async function placeManualMarker(latLng, index) {
     
     await updateManualLocation(latLng, index);
     
-    // Add/update marker without changing map view
-    if (state.mapProvider === 'google') {
-        // Remove old manual marker
-        if (state.photoMapMarkers.manual && state.photoMapMarkers.manual.setMap) {
-            state.photoMapMarkers.manual.setMap(null);
-        }
-        
-        // Add new manual marker
-        state.photoMapMarkers.manual = new google.maps.Marker({
-            position: { lat: lat, lng: lng },
+    // After updating, refresh the map display with the updated photo data from state
+    // This ensures all markers including the final marker are displayed correctly
+    if (state.photos[index]) {
+        displayPhotoMap(state.photos[index], index);
+    }
+}
+
+function updateFinalMarkerGoogle(photo) {
+    // Remove old final marker
+    if (state.photoMapMarkers.final && state.photoMapMarkers.final.setMap) {
+        state.photoMapMarkers.final.setMap(null);
+    }
+    
+    // Add final marker if coordinates are valid
+    if (photo && photo.final_latitude !== -360 && photo.final_longitude !== -360) {
+        state.photoMapMarkers.final = new google.maps.Marker({
+            position: { lat: photo.final_latitude, lng: photo.final_longitude },
             map: state.photoMap,
-            title: 'Manual Location',
-            draggable: true,
+            title: 'Final Location',
             icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 fillColor: '#2ecc71',
-                fillOpacity: 1,
+                fillOpacity: 0.8,
                 strokeColor: '#fff',
                 strokeWeight: 2,
-                scale: 10
-            }
+                scale: 12
+            },
+            zIndex: 1000
         });
-        
-        // Update on drag
-        state.photoMapMarkers.manual.addListener('dragend', (e) => {
-            updateManualLocation(e.latLng, index);
-        });
-    } else {
-        // Remove old manual marker
-        if (state.photoMapMarkers.manual && state.photoMapMarkers.manual.remove) {
-            state.photoMapMarkers.manual.remove();
-        }
-        
-        // Add new manual marker
-        state.photoMapMarkers.manual = L.marker(
-            [lat, lng],
+    }
+}
+
+function updateFinalMarkerOSM(photo) {
+    // Remove old final marker
+    if (state.photoMapMarkers.final && state.photoMapMarkers.final.remove) {
+        state.photoMapMarkers.final.remove();
+    }
+    
+    // Add final marker if coordinates are valid
+    if (photo && photo.final_latitude !== -360 && photo.final_longitude !== -360) {
+        state.photoMapMarkers.final = L.circleMarker(
+            [photo.final_latitude, photo.final_longitude],
             {
-                draggable: true,
-                icon: L.divIcon({
-                    className: 'manual-marker',
-                    html: '<div style="background-color: #2ecc71; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff;"></div>',
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
-                })
+                radius: 10,
+                fillColor: '#2ecc71',
+                fillOpacity: 0.8,
+                color: '#fff',
+                weight: 2
             }
-        ).bindTooltip('Manual Location').addTo(state.photoMap);
-        
-        // Update on drag
-        state.photoMapMarkers.manual.on('dragend', (e) => {
-            updateManualLocation(e.target.getLatLng(), index);
-        });
+        ).bindTooltip('Final Location').addTo(state.photoMap);
     }
 }
 
@@ -842,7 +897,7 @@ async function updateManualLocation(latLng, index) {
         const lat = latLng.lat !== undefined ? (typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat) : latLng.latitude;
         const lng = latLng.lng !== undefined ? (typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng) : latLng.longitude;
         
-        await fetch(`/api/photos/${index}/manual-location`, {
+        const response = await fetch(`/api/photos/${index}/manual-location`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -851,16 +906,23 @@ async function updateManualLocation(latLng, index) {
             })
         });
         
-        // Update local state
-        if (state.photos[index]) {
-            state.photos[index].manual_latitude = lat;
-            state.photos[index].manual_longitude = lng;
+        const result = await response.json();
+        
+        // Update local state with complete photo data including final coordinates
+        if (result.success && state.photos[index]) {
+            Object.assign(state.photos[index], result.photo);
         }
         
         // Update coordinates display
         document.getElementById('manual-coords').textContent = 
             `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
         document.getElementById('delete-manual-marker').disabled = false;
+        
+        // Update final coordinates display
+        if (result.photo && result.photo.final_latitude !== -360 && result.photo.final_longitude !== -360) {
+            document.getElementById('final-coords').textContent = 
+                `${result.photo.final_latitude.toFixed(6)}, ${result.photo.final_longitude.toFixed(6)}`;
+        }
         
     } catch (error) {
         console.error('Error updating manual location:', error);
@@ -871,17 +933,18 @@ async function deleteManualMarker() {
     if (state.selectedPhotoIndex === null) return;
     
     try {
-        await fetch(`/api/photos/${state.selectedPhotoIndex}/manual-location`, {
+        const response = await fetch(`/api/photos/${state.selectedPhotoIndex}/manual-location`, {
             method: 'DELETE'
         });
         
-        // Update local state
-        if (state.photos[state.selectedPhotoIndex]) {
-            state.photos[state.selectedPhotoIndex].manual_latitude = -360;
-            state.photos[state.selectedPhotoIndex].manual_longitude = -360;
+        const result = await response.json();
+        
+        // Update local state with complete photo data including updated final coordinates
+        if (result.success && state.photos[state.selectedPhotoIndex]) {
+            Object.assign(state.photos[state.selectedPhotoIndex], result.photo);
         }
         
-        // Remove marker from map without changing view
+        // Remove manual marker from map without changing view
         if (state.photoMapMarkers.manual) {
             if (state.mapProvider === 'google' && state.photoMapMarkers.manual.setMap) {
                 state.photoMapMarkers.manual.setMap(null);
@@ -894,6 +957,21 @@ async function deleteManualMarker() {
         // Update coordinates display
         document.getElementById('manual-coords').textContent = '--';
         document.getElementById('delete-manual-marker').disabled = true;
+        
+        // Update final marker and coordinates
+        if (state.mapProvider === 'google') {
+            updateFinalMarkerGoogle(state.photos[state.selectedPhotoIndex]);
+        } else {
+            updateFinalMarkerOSM(state.photos[state.selectedPhotoIndex]);
+        }
+        
+        // Update final coordinates display
+        if (result.photo && result.photo.final_latitude !== -360 && result.photo.final_longitude !== -360) {
+            document.getElementById('final-coords').textContent = 
+                `${result.photo.final_latitude.toFixed(6)}, ${result.photo.final_longitude.toFixed(6)}`;
+        } else {
+            document.getElementById('final-coords').textContent = '--';
+        }
         
     } catch (error) {
         console.error('Error deleting manual marker:', error);

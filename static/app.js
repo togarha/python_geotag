@@ -98,7 +98,6 @@ function initializeViews() {
 function initializeThumbnailsView() {
     const folderPathInput = document.getElementById('folder-path-input');
     const loadFolderBtn = document.getElementById('load-folder-btn');
-    const dropZone = document.getElementById('drop-zone');
     const recursiveCheckbox = document.getElementById('recursive-checkbox');
     const sortSelect = document.getElementById('sort-select');
     const filterSelect = document.getElementById('filter-select');
@@ -131,18 +130,6 @@ function initializeThumbnailsView() {
         });
     }
 
-    // Drag and drop
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('drag-over');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('drag-over');
-    });
-
-    dropZone.addEventListener('drop', handleFolderDrop);
-
     // Recursive checkbox
     recursiveCheckbox.addEventListener('change', () => {
         if (state.currentFolder) {
@@ -173,30 +160,6 @@ function initializeThumbnailsView() {
         sizeValue.textContent = `${state.thumbnailSize}px`;
         updateThumbnailSizes();
     });
-}
-
-async function handleFolderDrop(e) {
-    e.preventDefault();
-    const dropZone = document.getElementById('drop-zone');
-    dropZone.classList.remove('drag-over');
-
-    // Try to get folder path from dropped files
-    const files = Array.from(e.dataTransfer.files);
-    let folderPath = '';
-    
-    if (files.length > 0 && files[0].path) {
-        // Extract folder path from first file
-        folderPath = files[0].path.replace(/[\\\/][^\\\/]+$/, '');
-    }
-    
-    if (folderPath) {
-        const folderPathInput = document.getElementById('folder-path-input');
-        folderPathInput.value = folderPath;
-        const recursive = document.getElementById('recursive-checkbox').checked;
-        await scanFolder(folderPath, recursive);
-    } else {
-        alert('Could not determine folder path from dropped files.\nPlease type the folder path in the text field instead.');
-    }
 }
 
 async function scanFolder(folderPath, recursive) {

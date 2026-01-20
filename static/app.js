@@ -245,8 +245,10 @@ function displayPhotoGrid() {
         item.style.height = `${state.thumbnailSize}px`;
 
         const img = document.createElement('img');
-        img.src = `/api/photo-thumbnail/${index}?size=${state.thumbnailSize}`;
+        // Add timestamp to prevent caching issues when sort order changes
+        img.src = `/api/photo-thumbnail/${index}?size=${state.thumbnailSize}&t=${Date.now()}`;
         img.alt = photo.filename;
+        img.title = photo.filename; // Tooltip with filename
         img.loading = 'lazy';
 
         const checkboxOverlay = document.createElement('div');

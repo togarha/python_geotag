@@ -121,7 +121,7 @@ class PhotoManager:
             return None
     
     def get_photos(self, filter_type: str = "all") -> pd.DataFrame:
-        """Get photos with optional filtering"""
+        """Get photos with optional filtering, maintaining current sort order"""
         if self.pd_photo_info is None or self.pd_photo_info.empty:
             return pd.DataFrame()
         
@@ -181,6 +181,8 @@ class PhotoManager:
     def set_sort_order(self, sort_by: str):
         """Set the sort order and re-sort the DataFrame"""
         self.sort_by = sort_by
+        # Clear thumbnail cache since indices will change after sorting
+        self.thumbnail_cache.clear()
         self._apply_sort()
     
     def _apply_sort(self):

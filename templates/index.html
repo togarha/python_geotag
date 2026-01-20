@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">Geotag - Photo Geotagging Application</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+</head>
+<body>
+    <!-- Expandable Side Menu -->
+    <div id="menu-container">
+        <button id="menu-toggle" class="menu-toggle">☰</button>
+        <nav id="side-menu" class="side-menu">
+            <div class="menu-header">
+                <h2>Menu</h2>
+            </div>
+            <ul class="menu-items">
+                <li><a href="#" data-view="thumbnails" class="menu-link active">📷 Photo Thumbnails</a></li>
+                <li><a href="#" data-view="gpx" class="menu-link">🗺️ GPX View</a></li>
+            </ul>
+        </nav>
+    </div>
+
+    <!-- Main Content Area -->
+    <div id="main-content" class="main-content">
+        
+        <!-- Folder Photo Thumbnails View -->
+        <div id="thumbnails-view" class="view-container active">
+            <div class="toolbar">
+                <div class="toolbar-group">
+                    <input type="text" id="folder-path-input" class="folder-path-input" placeholder="Enter folder path (e.g., C:\Pictures)">
+                    <button id="load-folder-btn" class="btn btn-primary">📁 Load Folder</button>
+                    <span id="drop-zone" class="drop-zone">or drag & drop folder here</span>
+                </div>
+                <div class="toolbar-group">
+                    <label>
+                        <input type="checkbox" id="recursive-checkbox"> Include subfolders
+                    </label>
+                </div>
+            </div>
+
+            <div class="controls-bar">
+                <div class="control-group">
+                    <label for="sort-select">Sort by:</label>
+                    <select id="sort-select">
+                        <option value="time">Capture Time</option>
+                        <option value="name">Name</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="filter-select">Show:</label>
+                    <select id="filter-select">
+                        <option value="all">All Photos</option>
+                        <option value="tagged">Tagged Only</option>
+                        <option value="untagged">Untagged Only</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="thumbnail-size">Thumbnail Size:</label>
+                    <input type="range" id="thumbnail-size" min="100" max="400" value="200" step="50">
+                    <span id="size-value">200px</span>
+                </div>
+            </div>
+
+            <div class="content-split">
+                <div class="photo-list-panel">
+                    <h3>Photo List</h3>
+                    <div id="photo-list" class="photo-list"></div>
+                </div>
+                <div class="photo-grid-panel">
+                    <h3>Photo Grid</h3>
+                    <div id="photo-grid" class="photo-grid"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- GPX View -->
+        <div id="gpx-view" class="view-container">
+            <div class="toolbar">
+                <label for="gpx-upload" class="btn btn-primary">📂 Select GPX Files</label>
+                <input type="file" id="gpx-upload" accept=".gpx" multiple style="display: none;">
+                <span id="gpx-status" class="status-text">No GPX files loaded</span>
+            </div>
+            <div id="gpx-map" class="gpx-map"></div>
+            <div id="gpx-info" class="gpx-info"></div>
+        </div>
+
+        <!-- Large Photo View (Modal) -->
+        <div id="large-photo-modal" class="modal">
+            <div class="modal-content large-photo-content">
+                <button class="close-modal">&times;</button>
+                
+                <div class="photo-view-split">
+                    <div class="photo-display-section">
+                        <button class="nav-btn prev-btn" id="prev-photo">‹</button>
+                        <div class="photo-container">
+                            <img id="large-photo-img" src="" alt="Photo">
+                            <div class="photo-checkbox-overlay">
+                                <label>
+                                    <input type="checkbox" id="large-photo-tag"> Tagged
+                                </label>
+                            </div>
+                        </div>
+                        <button class="nav-btn next-btn" id="next-photo">›</button>
+                    </div>
+
+                    <div class="photo-info-section">
+                        <div class="exif-info-panel">
+                            <h3>EXIF Information</h3>
+                            <div id="exif-info" class="exif-info"></div>
+                        </div>
+
+                        <div class="map-panel">
+                            <h3>Location Map</h3>
+                            <div id="photo-map" class="photo-map"></div>
+                            <div class="map-controls">
+                                <button id="delete-manual-marker" class="btn btn-danger" disabled>
+                                    🗑️ Delete Manual Marker
+                                </button>
+                            </div>
+                            <div id="marker-info" class="marker-info">
+                                <div class="marker-label exif-marker">🔴 EXIF: <span id="exif-coords">--</span></div>
+                                <div class="marker-label gpx-marker">🔵 GPX: <span id="gpx-coords">--</span></div>
+                                <div class="marker-label manual-marker">🟢 Manual: <span id="manual-coords">--</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

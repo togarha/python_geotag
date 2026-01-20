@@ -1,0 +1,1 @@
+"""Geotag application package"""

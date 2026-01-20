@@ -653,21 +653,12 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
         document.getElementById('delete-manual-marker').disabled = true;
     }
 
-    // Center map
+    // Center map on markers without changing zoom (only on first load)
     if (hasMarkers) {
-        state.photoMap.fitBounds(bounds);
-    } else if (state.gpxTracks.length > 0) {
-        // Center on GPX tracks
-        const gpxBounds = new google.maps.LatLngBounds();
-        state.gpxTracks.forEach(track => {
-            if (track.bounds) {
-                gpxBounds.extend({ lat: track.bounds.north, lng: track.bounds.east });
-                gpxBounds.extend({ lat: track.bounds.south, lng: track.bounds.west });
-            }
-        });
-        state.photoMap.fitBounds(gpxBounds);
-    } else {
-        // Default to Valencia
+        // Pan to center of bounds without zooming
+        state.photoMap.panTo(bounds.getCenter());
+    } else if (!state.photoMap.getZoom() || state.photoMap.getZoom() === 0) {
+        // Only set default view if map hasn't been initialized
         state.photoMap.setCenter({ lat: 39.4699, lng: -0.3763 });
         state.photoMap.setZoom(10);
     }
@@ -771,10 +762,15 @@ function displayPhotoMapOSM(photo, index, mapElement) {
         document.getElementById('delete-manual-marker').disabled = true;
     }
 
-    // Center map
+    // Center map on markers without changing zoom (only on first load)
     if (bounds.length > 0) {
-        state.photoMap.fitBounds(bounds, { padding: [50, 50] });
-    } else {
+        // Calculate center of bounds and pan without zooming
+        const latSum = bounds.reduce((sum, b) => sum + b[0], 0);
+        const lngSum = bounds.reduce((sum, b) => sum + b[1], 0);
+        const center = [latSum / bounds.length, lngSum / bounds.length];
+        state.photoMap.panTo(center);
+    } else if (!state.photoMap.getZoom() || state.photoMap.getZoom() === 0) {
+        // Only set default view if map hasn't been initialized
         state.photoMap.setView([39.4699, -0.3763], 10);
     }
 }

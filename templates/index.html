@@ -92,6 +92,13 @@
                 <label for="gpx-upload" class="btn btn-primary">📂 Select GPX Files</label>
                 <input type="file" id="gpx-upload" accept=".gpx" multiple style="display: none;">
                 <span id="gpx-status" class="status-text">No GPX files loaded</span>
+                <div class="control-group" style="margin-left: auto;">
+                    <label for="gpx-map-provider">Map:</label>
+                    <select id="gpx-map-provider">
+                        <option value="osm">OpenStreetMap</option>
+                        <option value="google">Google Maps</option>
+                    </select>
+                </div>
             </div>
             <div id="gpx-map" class="gpx-map"></div>
             <div id="gpx-info" class="gpx-info"></div>

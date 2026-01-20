@@ -349,19 +349,47 @@ async function togglePhotoTag(index, tagged) {
 
 function initializeGPXView() {
     const gpxUpload = document.getElementById('gpx-upload');
+    const gpxMapProvider = document.getElementById('gpx-map-provider');
     
     gpxUpload.addEventListener('change', handleGPXUpload);
+    
+    // Map provider change handler
+    gpxMapProvider.addEventListener('change', (e) => {
+        state.gpxMapProvider = e.target.value;
+        // Reinitialize map with new provider
+        if (state.gpxTracks.length > 0) {
+            // Clear old map
+            const mapContainer = document.getElementById('gpx-map');
+            mapContainer.innerHTML = '';
+            state.gpxMap = null;
+            // Redisplay tracks with new provider
+            displayGPXTracks();
+        }
+    });
+    
+    // Set default provider
+    state.gpxMapProvider = 'osm';
 }
 
 function initializeGPXMap() {
     const mapElement = document.getElementById('gpx-map');
     
-    // Default center: Valencia, Spain
-    state.gpxMap = new google.maps.Map(mapElement, {
-        center: { lat: 39.4699, lng: -0.3763 },
-        zoom: 10,
-        mapTypeId: 'terrain'
-    });
+    if (state.gpxMapProvider === 'google') {
+        // Google Maps
+        state.gpxMap = new google.maps.Map(mapElement, {
+            center: { lat: 39.4699, lng: -0.3763 },
+            zoom: 10,
+            mapTypeId: 'terrain'
+        });
+    } else {
+        // OpenStreetMap (Leaflet)
+        state.gpxMap = L.map(mapElement).setView([39.4699, -0.3763], 10);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(state.gpxMap);
+    }
 }
 
 async function handleGPXUpload(e) {
@@ -397,27 +425,51 @@ function displayGPXTracks() {
         initializeGPXMap();
     }
 
-    const bounds = new google.maps.LatLngBounds();
+    if (state.gpxMapProvider === 'google') {
+        // Google Maps implementation
+        const bounds = new google.maps.LatLngBounds();
 
-    state.gpxTracks.forEach(track => {
-        const path = track.points.map(p => ({ lat: p.lat, lng: p.lng }));
-        
-        const polyline = new google.maps.Polyline({
-            path: path,
-            geodesic: true,
-            strokeColor: '#FF0000',
-            strokeOpacity: 0.8,
-            strokeWeight: 3,
-            map: state.gpxMap
+        state.gpxTracks.forEach(track => {
+            const path = track.points.map(p => ({ lat: p.lat, lng: p.lng }));
+            
+            const polyline = new google.maps.Polyline({
+                path: path,
+                geodesic: true,
+                strokeColor: '#FF0000',
+                strokeOpacity: 0.8,
+                strokeWeight: 3,
+                map: state.gpxMap
+            });
+
+            // Extend bounds
+            path.forEach(point => bounds.extend(point));
         });
 
-        // Extend bounds
-        path.forEach(point => bounds.extend(point));
-    });
+        // Fit map to bounds
+        if (!bounds.isEmpty()) {
+            state.gpxMap.fitBounds(bounds);
+        }
+    } else {
+        // OpenStreetMap (Leaflet) implementation
+        const bounds = [];
 
-    // Fit map to bounds
-    if (!bounds.isEmpty()) {
-        state.gpxMap.fitBounds(bounds);
+        state.gpxTracks.forEach(track => {
+            const latlngs = track.points.map(p => [p.lat, p.lng]);
+            
+            const polyline = L.polyline(latlngs, {
+                color: '#FF0000',
+                opacity: 0.8,
+                weight: 3
+            }).addTo(state.gpxMap);
+
+            // Collect bounds
+            latlngs.forEach(latlng => bounds.push(latlng));
+        });
+
+        // Fit map to bounds
+        if (bounds.length > 0) {
+            state.gpxMap.fitBounds(bounds);
+        }
     }
 
     // Display track info

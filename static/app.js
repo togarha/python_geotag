@@ -278,6 +278,8 @@ function displayPhotoGrid() {
         const item = document.createElement('div');
         item.className = 'photo-grid-item';
         item.dataset.index = index;
+        item.style.width = `${state.thumbnailSize}px`;
+        item.style.height = `${state.thumbnailSize}px`;
 
         const img = document.createElement('img');
         img.src = `/api/photo-thumbnail/${index}?size=${state.thumbnailSize}`;
@@ -321,7 +323,13 @@ function displayPhotoGrid() {
 
 function updateThumbnailSizes() {
     const photoGrid = document.getElementById('photo-grid');
-    photoGrid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${state.thumbnailSize}px, 1fr))`;
+    
+    // Update grid item sizes
+    const items = photoGrid.querySelectorAll('.photo-grid-item');
+    items.forEach(item => {
+        item.style.width = `${state.thumbnailSize}px`;
+        item.style.height = `${state.thumbnailSize}px`;
+    });
     
     // Reload thumbnails with new size
     const images = photoGrid.querySelectorAll('img');

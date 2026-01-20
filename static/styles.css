@@ -308,10 +308,11 @@ body {
 }
 
 .photo-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 15px;
     padding: 10px;
+    justify-content: flex-start;
 }
 
 .photo-grid-item {
@@ -322,6 +323,11 @@ body {
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     transition: transform 0.2s, box-shadow 0.2s;
     background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 200px;
+    height: 200px;
 }
 
 .photo-grid-item:hover {
@@ -334,9 +340,9 @@ body {
 }
 
 .photo-grid-item img {
-    width: 100%;
-    height: 200px;
-    object-fit: cover;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
     display: block;
 }
 

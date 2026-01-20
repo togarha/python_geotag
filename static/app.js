@@ -245,8 +245,10 @@ function displayPhotoGrid() {
         item.style.height = `${state.thumbnailSize}px`;
 
         const img = document.createElement('img');
+        // Use original_index from backend to get correct thumbnail
+        const photoIndex = photo.original_index !== undefined ? photo.original_index : index;
         // Add timestamp to prevent caching issues when sort order changes
-        img.src = `/api/photo-thumbnail/${index}?size=${state.thumbnailSize}&t=${Date.now()}`;
+        img.src = `/api/photo-thumbnail/${photoIndex}?size=${state.thumbnailSize}&t=${Date.now()}`;
         img.alt = photo.filename;
         img.title = photo.filename; // Tooltip with filename
         img.loading = 'lazy';
@@ -259,7 +261,7 @@ function displayPhotoGrid() {
         checkbox.checked = photo.tagged;
         checkbox.addEventListener('change', (e) => {
             e.stopPropagation();
-            togglePhotoTag(index, checkbox.checked);
+            togglePhotoTag(photoIndex, checkbox.checked);
         });
         
         checkboxOverlay.appendChild(checkbox);
@@ -471,31 +473,35 @@ function closeLargePhotoView() {
 
 async function displayLargePhoto(index) {
     try {
+        // Get the photo from state to access original_index
+        const photo = state.photos[index];
+        const photoIndex = photo.original_index !== undefined ? photo.original_index : index;
+        
         // Fetch photo details (includes GPX matching)
-        const response = await fetch(`/api/photos/${index}`);
+        const response = await fetch(`/api/photos/${photoIndex}`);
         const result = await response.json();
         
         if (!result.success) return;
         
-        const photo = result.photo;
+        const photoData = result.photo;
         
         // Update image
         const img = document.getElementById('large-photo-img');
-        img.src = `/api/photo-image/${index}?t=${Date.now()}`;
+        img.src = `/api/photo-image/${photoIndex}?t=${Date.now()}`;
         
         // Update tag checkbox
         const tagCheckbox = document.getElementById('large-photo-tag');
-        tagCheckbox.checked = photo.tagged;
+        tagCheckbox.checked = photoData.tagged;
         
         // Update navigation buttons
         document.getElementById('prev-photo').disabled = (index === 0);
         document.getElementById('next-photo').disabled = (index === state.photos.length - 1);
         
         // Display EXIF info
-        displayEXIFInfo(photo);
+        displayEXIFInfo(photoData);
         
         // Display map with markers
-        displayPhotoMap(photo, index);
+        displayPhotoMap(photoData, photoIndex);
         
     } catch (error) {
         console.error('Error displaying photo:', error);

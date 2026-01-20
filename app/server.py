@@ -70,11 +70,14 @@ async def scan_folder(request: ScanFolderRequest):
     """
     try:
         df = photo_manager.scan_folder(request.folder_path, request.recursive)
+        # Reset index and add original index as a column
+        df_with_index = df.reset_index()
+        df_with_index.rename(columns={'index': 'original_index'}, inplace=True)
         return {
             "success": True,
             "folder": request.folder_path,
             "count": len(df),
-            "data": df.to_dict(orient="records")
+            "data": df_with_index.to_dict(orient="records")
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -88,10 +91,13 @@ async def get_photos(filter_type: str = "all"):
     """
     try:
         df = photo_manager.get_photos(filter_type)
+        # Reset index and add original index as a column
+        df_with_index = df.reset_index()
+        df_with_index.rename(columns={'index': 'original_index'}, inplace=True)
         return {
             "success": True,
             "count": len(df),
-            "data": df.to_dict(orient="records")
+            "data": df_with_index.to_dict(orient="records")
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

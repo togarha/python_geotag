@@ -254,7 +254,6 @@ function displayPhotoGrid() {
         const checkboxOverlay = document.createElement('div');
         checkboxOverlay.className = 'checkbox-overlay';
         
-        const label = document.createElement('label');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.checked = photo.tagged;
@@ -263,9 +262,7 @@ function displayPhotoGrid() {
             togglePhotoTag(index, checkbox.checked);
         });
         
-        label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(' Tag'));
-        checkboxOverlay.appendChild(label);
+        checkboxOverlay.appendChild(checkbox);
 
         item.appendChild(img);
         item.appendChild(checkboxOverlay);
@@ -327,6 +324,9 @@ async function togglePhotoTag(index, tagged) {
         
         // Update local state
         state.photos[index].tagged = tagged;
+        
+        // Refresh the displays to show updated tag status
+        displayPhotos();
     } catch (error) {
         console.error('Error toggling tag:', error);
     }
@@ -481,7 +481,7 @@ async function displayLargePhoto(index) {
         
         // Update image
         const img = document.getElementById('large-photo-img');
-        img.src = `/api/photo-image/${index}`;
+        img.src = `/api/photo-image/${index}?t=${Date.now()}`;
         
         // Update tag checkbox
         const tagCheckbox = document.getElementById('large-photo-tag');

@@ -780,13 +780,63 @@ function displayPhotoMapOSM(photo, index, mapElement) {
 }
 
 async function placeManualMarker(latLng, index) {
+    // Handle both Google Maps and Leaflet LatLng objects
+    const lat = latLng.lat !== undefined ? (typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat) : latLng.latitude;
+    const lng = latLng.lng !== undefined ? (typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng) : latLng.longitude;
+    
     await updateManualLocation(latLng, index);
     
-    // Refresh the display
-    const response = await fetch(`/api/photos/${index}`);
-    const result = await response.json();
-    if (result.success) {
-        displayPhotoMap(result.photo, index);
+    // Add/update marker without changing map view
+    if (state.mapProvider === 'google') {
+        // Remove old manual marker
+        if (state.photoMapMarkers.manual && state.photoMapMarkers.manual.setMap) {
+            state.photoMapMarkers.manual.setMap(null);
+        }
+        
+        // Add new manual marker
+        state.photoMapMarkers.manual = new google.maps.Marker({
+            position: { lat: lat, lng: lng },
+            map: state.photoMap,
+            title: 'Manual Location',
+            draggable: true,
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                fillColor: '#2ecc71',
+                fillOpacity: 1,
+                strokeColor: '#fff',
+                strokeWeight: 2,
+                scale: 10
+            }
+        });
+        
+        // Update on drag
+        state.photoMapMarkers.manual.addListener('dragend', (e) => {
+            updateManualLocation(e.latLng, index);
+        });
+    } else {
+        // Remove old manual marker
+        if (state.photoMapMarkers.manual && state.photoMapMarkers.manual.remove) {
+            state.photoMapMarkers.manual.remove();
+        }
+        
+        // Add new manual marker
+        state.photoMapMarkers.manual = L.marker(
+            [lat, lng],
+            {
+                draggable: true,
+                icon: L.divIcon({
+                    className: 'manual-marker',
+                    html: '<div style="background-color: #2ecc71; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff;"></div>',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            }
+        ).bindTooltip('Manual Location').addTo(state.photoMap);
+        
+        // Update on drag
+        state.photoMapMarkers.manual.on('dragend', (e) => {
+            updateManualLocation(e.target.getLatLng(), index);
+        });
     }
 }
 
@@ -835,8 +885,19 @@ async function deleteManualMarker() {
             state.photos[state.selectedPhotoIndex].manual_longitude = -360;
         }
         
-        // Refresh display
-        await displayLargePhoto(state.selectedPhotoIndex);
+        // Remove marker from map without changing view
+        if (state.photoMapMarkers.manual) {
+            if (state.mapProvider === 'google' && state.photoMapMarkers.manual.setMap) {
+                state.photoMapMarkers.manual.setMap(null);
+            } else if (state.photoMapMarkers.manual.remove) {
+                state.photoMapMarkers.manual.remove();
+            }
+            state.photoMapMarkers.manual = null;
+        }
+        
+        // Update coordinates display
+        document.getElementById('manual-coords').textContent = '--';
+        document.getElementById('delete-manual-marker').disabled = true;
         
     } catch (error) {
         console.error('Error deleting manual marker:', error);

@@ -12,6 +12,7 @@ const state = {
     filterType: 'all',
     sortBy: 'time',
     thumbnailSize: 200,
+    mapProvider: 'osm', // 'osm' or 'google'
     gpxMap: null,
     photoMap: null,
     photoMapMarkers: {
@@ -99,10 +100,19 @@ function initializeThumbnailsView() {
     const folderPathInput = document.getElementById('folder-path-input');
     const loadFolderBtn = document.getElementById('load-folder-btn');
     const recursiveCheckbox = document.getElementById('recursive-checkbox');
+    const mapProviderSelect = document.getElementById('map-provider');
     const sortSelect = document.getElementById('sort-select');
     const filterSelect = document.getElementById('filter-select');
     const thumbnailSizeSlider = document.getElementById('thumbnail-size');
     const sizeValue = document.getElementById('size-value');
+
+    // Map provider select
+    mapProviderSelect.addEventListener('change', () => {
+        state.mapProvider = mapProviderSelect.value;
+        // Reset maps so they reinitialize with new provider
+        state.photoMap = null;
+        state.gpxMap = null;
+    });
 
     // Load folder button
     if (loadFolderBtn) {
@@ -533,6 +543,14 @@ function displayEXIFInfo(photo) {
 function displayPhotoMap(photo, index) {
     const mapElement = document.getElementById('photo-map');
     
+    if (state.mapProvider === 'google') {
+        displayPhotoMapGoogle(photo, index, mapElement);
+    } else {
+        displayPhotoMapOSM(photo, index, mapElement);
+    }
+}
+
+function displayPhotoMapGoogle(photo, index, mapElement) {
     // Initialize map if not already done
     if (!state.photoMap) {
         state.photoMap = new google.maps.Map(mapElement, {
@@ -548,7 +566,7 @@ function displayPhotoMap(photo, index) {
 
     // Clear existing markers
     Object.values(state.photoMapMarkers).forEach(marker => {
-        if (marker) marker.setMap(null);
+        if (marker && marker.setMap) marker.setMap(null);
     });
 
     const bounds = new google.maps.LatLngBounds();
@@ -655,6 +673,112 @@ function displayPhotoMap(photo, index) {
     }
 }
 
+function displayPhotoMapOSM(photo, index, mapElement) {
+    // Initialize map if not already done
+    if (!state.photoMap) {
+        state.photoMap = L.map(mapElement).setView([39.4699, -0.3763], 10);
+        
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(state.photoMap);
+        
+        // Add click listener for manual marker placement
+        state.photoMap.on('click', (e) => {
+            placeManualMarker(e.latlng, index);
+        });
+    }
+
+    // Clear existing markers
+    Object.values(state.photoMapMarkers).forEach(marker => {
+        if (marker && marker.remove) marker.remove();
+    });
+
+    const bounds = [];
+
+    // EXIF marker (red)
+    if (photo.exif_latitude !== -360 && photo.exif_longitude !== -360) {
+        state.photoMapMarkers.exif = L.circleMarker(
+            [photo.exif_latitude, photo.exif_longitude],
+            {
+                radius: 8,
+                fillColor: '#e74c3c',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 1
+            }
+        ).bindTooltip('EXIF Location').addTo(state.photoMap);
+        
+        bounds.push([photo.exif_latitude, photo.exif_longitude]);
+        
+        document.getElementById('exif-coords').textContent = 
+            `${photo.exif_latitude.toFixed(6)}, ${photo.exif_longitude.toFixed(6)}`;
+    } else {
+        document.getElementById('exif-coords').textContent = '--';
+    }
+
+    // GPX marker (blue)
+    if (photo.gpx_latitude !== -360 && photo.gpx_longitude !== -360) {
+        state.photoMapMarkers.gpx = L.circleMarker(
+            [photo.gpx_latitude, photo.gpx_longitude],
+            {
+                radius: 8,
+                fillColor: '#3498db',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 1
+            }
+        ).bindTooltip('GPX Matched Location').addTo(state.photoMap);
+        
+        bounds.push([photo.gpx_latitude, photo.gpx_longitude]);
+        
+        document.getElementById('gpx-coords').textContent = 
+            `${photo.gpx_latitude.toFixed(6)}, ${photo.gpx_longitude.toFixed(6)}`;
+    } else {
+        document.getElementById('gpx-coords').textContent = '--';
+    }
+
+    // Manual marker (green, draggable)
+    if (photo.manual_latitude !== -360 && photo.manual_longitude !== -360) {
+        state.photoMapMarkers.manual = L.marker(
+            [photo.manual_latitude, photo.manual_longitude],
+            {
+                draggable: true,
+                icon: L.divIcon({
+                    className: 'manual-marker',
+                    html: '<div style="background-color: #2ecc71; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff;"></div>',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            }
+        ).bindTooltip('Manual Location').addTo(state.photoMap);
+        
+        // Update on drag
+        state.photoMapMarkers.manual.on('dragend', (e) => {
+            updateManualLocation(e.target.getLatLng(), index);
+        });
+        
+        bounds.push([photo.manual_latitude, photo.manual_longitude]);
+        
+        document.getElementById('manual-coords').textContent = 
+            `${photo.manual_latitude.toFixed(6)}, ${photo.manual_longitude.toFixed(6)}`;
+        document.getElementById('delete-manual-marker').disabled = false;
+    } else {
+        document.getElementById('manual-coords').textContent = '--';
+        document.getElementById('delete-manual-marker').disabled = true;
+    }
+
+    // Center map
+    if (bounds.length > 0) {
+        state.photoMap.fitBounds(bounds, { padding: [50, 50] });
+    } else {
+        state.photoMap.setView([39.4699, -0.3763], 10);
+    }
+}
+
 async function placeManualMarker(latLng, index) {
     await updateManualLocation(latLng, index);
     
@@ -668,24 +792,28 @@ async function placeManualMarker(latLng, index) {
 
 async function updateManualLocation(latLng, index) {
     try {
+        // Handle both Google Maps and Leaflet LatLng objects
+        const lat = latLng.lat !== undefined ? (typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat) : latLng.latitude;
+        const lng = latLng.lng !== undefined ? (typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng) : latLng.longitude;
+        
         await fetch(`/api/photos/${index}/manual-location`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                latitude: latLng.lat(),
-                longitude: latLng.lng()
+                latitude: lat,
+                longitude: lng
             })
         });
         
         // Update local state
         if (state.photos[index]) {
-            state.photos[index].manual_latitude = latLng.lat();
-            state.photos[index].manual_longitude = latLng.lng();
+            state.photos[index].manual_latitude = lat;
+            state.photos[index].manual_longitude = lng;
         }
         
         // Update coordinates display
         document.getElementById('manual-coords').textContent = 
-            `${latLng.lat().toFixed(6)}, ${latLng.lng().toFixed(6)}`;
+            `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
         document.getElementById('delete-manual-marker').disabled = false;
         
     } catch (error) {

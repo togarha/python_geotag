@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="page-title">Geotag - Photo Geotagging Application</title>
     <link rel="stylesheet" href="/static/styles.css">
+    <!-- Leaflet CSS for OpenStreetMap -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet JS for OpenStreetMap -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Google Maps -->
     <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
 </head>
 <body>
@@ -40,6 +45,13 @@
             </div>
 
             <div class="controls-bar">
+                <div class="control-group">
+                    <label for="map-provider">Map:</label>
+                    <select id="map-provider">
+                        <option value="osm">OpenStreetMap</option>
+                        <option value="google">Google Maps</option>
+                    </select>
+                </div>
                 <div class="control-group">
                     <label for="sort-select">Sort by:</label>
                     <select id="sort-select">

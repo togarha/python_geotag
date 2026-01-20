@@ -119,11 +119,17 @@ class PhotoManager:
             return None
         
         try:
-            decimal = coords[0] + coords[1] / 60 + coords[2] / 3600
+            # Handle Fraction objects (common on Mac) by converting to float
+            degrees = float(coords[0])
+            minutes = float(coords[1])
+            seconds = float(coords[2])
+            
+            decimal = degrees + minutes / 60 + seconds / 3600
             if ref in ['S', 'W']:
                 decimal = -decimal
             return decimal
-        except:
+        except Exception as e:
+            print(f"Error converting GPS coordinates: {e}")
             return None
     
     def get_photos(self, filter_type: str = "all") -> pd.DataFrame:

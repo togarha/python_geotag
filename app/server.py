@@ -142,19 +142,23 @@ async def get_photo_details(index: int):
         photo = photo_manager.get_photo_by_index(index)
         
         # Try to match with GPX data if coordinates are not set
-        if photo['gpx_latitude'] == -360 and gpx_manager.has_data():
-            gpx_coords = gpx_manager.find_closest_point(
-                photo['exif_capture_time'],
-                time_window_minutes=5
-            )
-            if gpx_coords:
-                photo_manager.update_gpx_location(
-                    index, 
-                    gpx_coords['latitude'], 
-                    gpx_coords['longitude']
+        if photo['gpx_latitude'] == -360 and gpx_manager.has_data() and photo['exif_capture_time'] is not None:
+            try:
+                gpx_coords = gpx_manager.find_closest_point(
+                    photo['exif_capture_time'],
+                    time_window_minutes=5
                 )
-                photo['gpx_latitude'] = gpx_coords['latitude']
-                photo['gpx_longitude'] = gpx_coords['longitude']
+                if gpx_coords:
+                    photo_manager.update_gpx_location(
+                        index, 
+                        gpx_coords['latitude'], 
+                        gpx_coords['longitude']
+                    )
+                    photo['gpx_latitude'] = gpx_coords['latitude']
+                    photo['gpx_longitude'] = gpx_coords['longitude']
+            except Exception as gpx_error:
+                # Log GPX matching error but don't fail the request
+                print(f"Warning: GPX matching failed for photo {index}: {gpx_error}")
         
         return {"success": True, "photo": photo}
     except Exception as e:

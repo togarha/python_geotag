@@ -206,6 +206,28 @@ class GPXManager:
         if 'time' not in self.pd_gpx_info.columns:
             return None
         
+        # Convert target_time to datetime if it's a string
+        if isinstance(target_time, str):
+            try:
+                target_time = pd.to_datetime(target_time)
+            except Exception as e:
+                print(f"Error parsing target time '{target_time}': {e}")
+                return None
+        
+        # Ensure target_time is timezone-aware if DataFrame times are
+        # or make both timezone-naive for comparison
+        sample_time = self.pd_gpx_info['time'].iloc[0]
+        if hasattr(sample_time, 'tz') and sample_time.tz is not None:
+            # DataFrame times are timezone-aware
+            if not hasattr(target_time, 'tz') or target_time.tz is None:
+                # Make target_time timezone-aware (assume UTC)
+                target_time = pd.Timestamp(target_time).tz_localize('UTC')
+        else:
+            # DataFrame times are timezone-naive
+            if hasattr(target_time, 'tz') and target_time.tz is not None:
+                # Remove timezone from target_time
+                target_time = target_time.tz_localize(None)
+        
         # Filter points within time window
         time_min = target_time - timedelta(minutes=time_window_minutes)
         time_max = target_time + timedelta(minutes=time_window_minutes)

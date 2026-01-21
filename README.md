@@ -1,51 +1,64 @@
 # Geotag - Photo Geotagging Application
 
-A powerful web-based photo geotagging application built with Python and FastAPI. Organize, view, and geotag your photos using EXIF data, GPX tracks, and manual location assignment.
+A powerful web-based photo geotagging application built with Python and FastAPI. Organize, view, and geotag your photos using EXIF data, GPX tracks, and manual location assignment with dual map provider support.
 
 ## Features
 
 ### 📷 Photo Management
 - **Folder Scanning**: Select folders via file picker or drag-and-drop
 - **Recursive Search**: Include photos from subfolders
-- **Smart Sorting**: Sort by capture time or filename
-- **Filtering**: View all, tagged, or untagged photos
-- **Dual View**: List and grid thumbnail views simultaneously
+- **Smart Sorting**: Sort by capture time or filename with synchronized grid and list views
+- **Filtering**: View all, tagged, or untagged photos with correct index tracking
+- **Dual View**: List and grid thumbnail views synchronized in real-time
 - **Adjustable Thumbnails**: Slide control for thumbnail size (100-400px)
+- **Cache-Busting**: Automatic thumbnail and image refresh with timestamp parameters
+- **Cross-Platform**: Works on Windows, Mac, and Linux with proper EXIF handling
 
 ### 🗺️ GPS & Geotagging
-- **EXIF GPS Extraction**: Automatically reads GPS coordinates from photo metadata
-- **GPX Track Integration**: Load GPX files and match photos to track points
+- **Dual Map Providers**: Switch between OpenStreetMap and Google Maps
+- **EXIF GPS Extraction**: Automatically reads GPS coordinates from photo metadata (supports Fraction objects on Mac)
+- **GPX Track Integration**: Load GPX files and match photos to track points on both map providers
 - **Automatic Matching**: Photos matched to GPX tracks within ±5 minutes
-- **Manual Geotagging**: Click on map to set custom locations
-- **Three Coordinate Sources**:
+- **Manual Geotagging**: Click on map to set custom locations with draggable markers
+- **Four Coordinate Sources**:
   - 🔴 EXIF coordinates (from camera GPS)
   - 🔵 GPX matched coordinates (from track logs)
-  - 🟢 Manual coordinates (user-defined)
+  - 🟡 Manual coordinates (user-defined, draggable)
+  - 🟢 Final coordinates (cascade: Manual → GPX → EXIF)
+- **Smart Coordinate Cascade**: Final location automatically updates based on priority
+- **Zoom Preservation**: Map maintains zoom level when navigating photos or placing markers
+- **Visual Marker Hierarchy**: Larger, semi-transparent final marker shows around smaller manual marker
 
 ### 🖼️ Photo Viewer
 - **Large Photo View**: Full-size photo display with navigation
 - **Keyboard Controls**: Arrow keys for navigation, Space to open, Escape to close
-- **Tag Management**: Quick tagging with checkboxes
+- **Tag Management**: Quick tagging with checkboxes (labels removed for cleaner UI)
 - **EXIF Display**: Comprehensive metadata viewing
-- **Interactive Map**: View and edit photo locations on Google Maps
+- **Interactive Map**: View and edit photo locations with dual map provider support
+- **Real-time Updates**: Coordinate display updates immediately when placing or deleting markers
+- **Marker Management**: Delete manual markers with automatic fallback to GPX or EXIF coordinates
 
 ### 🎨 User Interface
 - **Expandable Menu**: Auto-expands on hover or click
 - **Responsive Design**: Works on desktop and mobile
 - **Modern UI**: Clean, intuitive interface with smooth animations
 - **Three Main Views**:
-  1. Photo Thumbnails View
-  2. GPX View
-  3. Large Photo View (modal)
+  1. Photo Thumbnails View (with dual map provider)
+  2. GPX View (with dual map provider)
+  3. Large Photo View (modal with dual map provider)
+- **Clean Checkboxes**: Tag checkboxes without distracting labels
+- **Emoji Markers**: Proper UTF-8 emoji support (🔴 🔵 🟡 🟢) in legend
 
 ## Technology Stack
 
 - **Backend**: FastAPI (Python web framework)
-- **Data Management**: Pandas DataFrames
-- **Image Processing**: Pillow (PIL)
+- **Data Management**: Pandas DataFrames with 14 columns including final coordinates
+- **Image Processing**: Pillow (PIL) with RGB conversion and thumbnail caching
 - **GPX Parsing**: gpxpy
 - **Frontend**: Vanilla JavaScript, HTML5, CSS3
-- **Maps**: Google Maps JavaScript API
+- **Maps**: 
+  - OpenStreetMap via Leaflet 1.9.4
+  - Google Maps JavaScript API
 - **Package Manager**: uv (fast Python package manager)
 
 ## Installation
@@ -67,18 +80,23 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
    uv sync
    ```
 
-3. **Get a Google Maps API Key**:
+3. **Configure Map Providers**:
+   
+   **For OpenStreetMap (Default)**:
+   - No API key required - works out of the box!
+   
+   **For Google Maps (Optional)**:
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
    - Create a new project or select an existing one
    - Enable the Maps JavaScript API
    - Create credentials (API Key)
    - Copy the API key
+   - Open `templates\index.html` and replace `YOUR_GOOGLE_MAPS_API_KEY`:
+     ```html
+     <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_ACTUAL_API_KEY"></script>
+     ```
 
-4. **Configure Google Maps API**:
-   Open `templates\index.html` and replace `YOUR_GOOGLE_MAPS_API_KEY` with your actual API key:
-   ```html
-   <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_ACTUAL_API_KEY"></script>
-   ```
+**Note**: The application defaults to OpenStreetMap, which requires no API key. You only need a Google Maps API key if you want to use Google Maps as an alternative provider.
 
 ## Running the Application
 
@@ -105,15 +123,16 @@ http://127.0.0.1:8000
 
 2. **Configure Options**:
    - Check "Include subfolders" for recursive scanning
-   - Select sort order (Capture Time or Name)
-   - Choose filter (All Photos, Tagged Only, Untagged Only)
+   - Select sort order (Capture Time or Name) - both grid and list update automatically
+   - Choose filter (All Photos, Tagged Only, Untagged Only) - maintains correct photo indices
    - Adjust thumbnail size with the slider
+   - Choose map provider (OpenStreetMap or Google Maps)
 
 3. **Interact with Photos**:
    - Single click: Select a photo
    - Double click: Open in Large Photo View
    - Press Space: Open selected photo in Large Photo View
-   - Click checkbox: Toggle tagged status
+   - Click checkbox: Toggle tagged status (checkboxes update immediately across all views)
 
 ### GPX View
 
@@ -126,27 +145,45 @@ http://127.0.0.1:8000
    - Map automatically centers to fit all tracks
    - Track information shows below the map
 
+3. **Switch Map Provider**:
+   - Use the "Map:" dropdown to switch between OpenStreetMap and Google Maps
+   - Tracks are redrawn automatically on the new map
+
 ### Large Photo View
 
 1. **Navigation**:
    - Click ‹ / › buttons or use arrow keys
    - Photos maintain sort order from thumbnail view
+   - Map preserves zoom level when navigating between photos
 
 2. **Viewing Information**:
    - Left side: Full-size photo
    - Top right: EXIF metadata
-   - Bottom right: Interactive location map
+   - Bottom right: Interactive location map with coordinate legend
 
-3. **Geotagging**:
-   - View existing coordinates (EXIF, GPX, Manual)
+3. **Map Provider Selection**:
+   - Use the "Map:" dropdown to switch between OpenStreetMap and Google Maps
+   - Current zoom and center position are maintained
+
+4. **Coordinate Legend**:
+   - 🔴 EXIF: GPS coordinates from camera
+   - 🔵 GPX: Coordinates matched from GPX tracks
+   - 🟡 Manual: User-set coordinates (draggable)
+   - 🟢 Final: Active coordinates (follows cascade logic)
+
+5. **Geotagging**:
+   - View existing coordinates from all sources
    - Click anywhere on map to set manual location
-   - Drag green marker to adjust position
+   - Drag yellow marker to adjust position
+   - Manual marker appears with green final marker ring around it
    - Click "🗑️ Delete Manual Marker" to remove manual location
+   - Final coordinates automatically fall back to GPX or EXIF when manual is deleted
 
-4. **Automatic GPX Matching**:
+6. **Automatic GPX Matching**:
    - When a photo opens, if no GPX coordinates exist
    - System searches GPX tracks for points within ±5 minutes of capture time
    - Closest match is automatically assigned
+   - Final coordinates update accordingly
 
 ## Data Structure
 
@@ -165,8 +202,17 @@ Stores all photo information with the following columns:
 | gpx_longitude | float | Matched GPS longitude from GPX (-360 if none) |
 | manual_latitude | float | User-set GPS latitude (-360 if none) |
 | manual_longitude | float | User-set GPS longitude (-360 if none) |
+| final_latitude | float | **Active GPS latitude (cascade logic)** |
+| final_longitude | float | **Active GPS longitude (cascade logic)** |
 | new_name | string | Placeholder for renaming feature |
 | tagged | boolean | Tag status for filtering |
+| original_index | int | Original index before filtering (frontend) |
+
+**Final Coordinates Cascade Logic**:
+1. If manual coordinates exist → use manual
+2. Else if GPX coordinates exist → use GPX
+3. Else → use EXIF
+4. Final coordinates update automatically when any source changes
 
 ### pd_gpx_info DataFrame
 Stores GPX track point information:
@@ -181,18 +227,23 @@ Stores GPX track point information:
 
 ## API Endpoints
 
+### Photo Management
 - `GET /` - Serve main HTML page
-- `POST /api/scan-folder` - Scan folder for photos
-- `GET /api/photos` - Get photos with filtering
-- `GET /api/photos/{index}` - Get specific photo details
-- `POST /api/photos/{index}/tag` - Toggle photo tag
-- `POST /api/photos/{index}/manual-location` - Set manual GPS
-- `DELETE /api/photos/{index}/manual-location` - Delete manual GPS
-- `GET /api/photo-thumbnail/{index}` - Get photo thumbnail
-- `GET /api/photo-image/{index}` - Get full-size image
+- `POST /api/scan-folder` - Scan folder for photos (returns photos with original_index)
+- `GET /api/photos` - Get photos with filtering (maintains original_index)
+- `GET /api/photos/{index}` - Get specific photo details with GPX matching
+- `POST /api/photos/{index}/tag` - Toggle photo tag status
+- `GET /api/photo-thumbnail/{index}` - Get photo thumbnail (with cache-busting)
+- `GET /api/photo-image/{index}` - Get full-size image (with cache-busting)
+- `POST /api/sort` - Set photo sort order (clears thumbnail cache)
+
+### GPS & Geotagging
+- `POST /api/photos/{index}/manual-location` - Set manual GPS (returns complete photo data with final coords)
+- `DELETE /api/photos/{index}/manual-location` - Delete manual GPS (returns updated photo data with fallback coords)
+
+### GPX Management
 - `POST /api/gpx/upload` - Load GPX files
 - `GET /api/gpx/tracks` - Get all GPX tracks
-- `POST /api/sort` - Set photo sort order
 
 ## Project Structure
 
@@ -227,20 +278,37 @@ geotag/
 - Check file permissions
 - Verify image file extensions are supported (jpg, jpeg, png, gif, bmp, tiff, heic)
 
+### Mac-specific: Fraction object error
+- Fixed in latest version - GPS coordinates from Mac EXIF are now properly converted
+- Ensure you're running the latest code
+
+### Photos showing wrong thumbnails after sorting/filtering
+- Fixed with cache-busting - thumbnails now include timestamp parameters
+- Clear browser cache if issues persist (Ctrl+Shift+R or Cmd+Shift+R)
+
+### Markers not visible on map
+- If manual and final markers overlap, final marker (green) appears as a larger ring around manual marker (yellow)
+- Zoom in to see individual markers more clearly
+- Check console (F12) for any JavaScript errors
+
 ### GPX not matching photos
 - Verify GPX files have timestamps
 - Check that photo capture times are within ±5 minutes of GPX points
 - Ensure EXIF capture time exists in photos
 
-### Google Maps not displaying
-- Verify API key is correctly set in `templates\index.html`
-- Check that Maps JavaScript API is enabled in Google Cloud Console
-- Ensure API key has no restrictions blocking localhost
+### Map not displaying
+- **OpenStreetMap**: Should work without any configuration
+- **Google Maps**: 
+  - Verify API key is correctly set in `templates\index.html`
+  - Check that Maps JavaScript API is enabled in Google Cloud Console
+  - Ensure API key has no restrictions blocking localhost
+- Try switching to the other map provider using the dropdown
 
 ### Server errors
 - Check Python version (3.11+ required)
 - Ensure all dependencies are installed: `uv sync`
 - Check console output for specific error messages
+- For Mac users: Ensure Pillow is properly installed for EXIF reading
 
 ## Development
 
@@ -256,7 +324,7 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 
 ## Future Enhancements
 
-- [ ] Batch EXIF writing (save GPS coordinates back to photos)
+- [ ] Batch EXIF writing (save final GPS coordinates back to photos)
 - [ ] Photo renaming based on capture time/location
 - [ ] Export tagged photos to new folder
 - [ ] Support for RAW image formats
@@ -266,6 +334,45 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [ ] Advanced filtering and search
 - [ ] Photo editing tools
 - [ ] Timeline view
+- [ ] Offline map tiles caching
+- [ ] Custom map marker styles
+- [ ] Photo clustering on map
+- [ ] Heatmap view for photo locations
+
+## Recent Updates (v1.1)
+
+### Map Providers
+- ✅ Added OpenStreetMap support via Leaflet 1.9.4
+- ✅ Added dual map provider support to all views
+- ✅ Default to OpenStreetMap (no API key required)
+
+### Coordinate System
+- ✅ Implemented final coordinates with cascade logic (Manual → GPX → EXIF)
+- ✅ Added 🟢 Final marker display (green, larger, semi-transparent)
+- ✅ Real-time coordinate updates in legend
+
+### UI/UX Improvements
+- ✅ Fixed yellow emoji (🟡) display in legend
+- ✅ Removed "Tag" labels from checkboxes for cleaner UI
+- ✅ Fixed sorting synchronization between grid and list
+- ✅ Implemented cache-busting for thumbnails and images
+- ✅ Fixed filtered view index tracking with original_index
+
+### Map Behavior
+- ✅ Preserve zoom level when navigating photos
+- ✅ Preserve zoom when placing/deleting markers
+- ✅ Pan to center instead of fitBounds for consistent zoom
+- ✅ Visual marker hierarchy (final marker larger than manual marker)
+
+### Cross-Platform
+- ✅ Fixed Mac EXIF GPS coordinate reading (Fraction objects)
+- ✅ Proper handling of different EXIF data formats
+
+### Bug Fixes
+- ✅ Fixed marker overlap visibility (final marker ring around manual marker)
+- ✅ Fixed tag status synchronization across views
+- ✅ Fixed browser caching issues with timestamp parameters
+- ✅ Fixed GPX view map provider support
 
 ## License
 
@@ -281,4 +388,4 @@ For issues, questions, or contributions, please refer to the project repository.
 
 ---
 
-**Note**: Remember to keep your Google Maps API key secure and never commit it to public repositories!
+**Note**: The application uses OpenStreetMap by default, which requires no API key. Google Maps is available as an optional alternative - remember to keep your API key secure and never commit it to public repositories if you choose to use it!

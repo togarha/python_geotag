@@ -231,6 +231,43 @@ async def clear_gpx_tracks():
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/api/gpx/set-main-offset")
+async def set_main_gpx_offset(request: dict):
+    """Set main time offset for all GPX tracks"""
+    try:
+        offset_str = request.get('offset', '+00:00:00')
+        offset_seconds = gpx_manager.parse_offset_string(offset_str)
+        gpx_manager.set_main_offset(offset_seconds)
+        
+        return {
+            "success": True,
+            "tracks": gpx_manager.get_all_tracks()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/gpx/set-track-offset")
+async def set_track_gpx_offset(request: dict):
+    """Set time offset for a specific GPX track"""
+    try:
+        track_index = request.get('track_index')
+        offset_str = request.get('offset', '+00:00:00')
+        
+        if track_index is None:
+            raise HTTPException(status_code=400, detail="track_index is required")
+        
+        offset_seconds = gpx_manager.parse_offset_string(offset_str)
+        gpx_manager.set_track_offset(track_index, offset_seconds)
+        
+        return {
+            "success": True,
+            "tracks": gpx_manager.get_all_tracks()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.get("/api/gpx/tracks")
 async def get_gpx_tracks():
     """Get all loaded GPX tracks"""

@@ -350,8 +350,10 @@ async function togglePhotoTag(index, tagged) {
 function initializeGPXView() {
     const gpxUpload = document.getElementById('gpx-upload');
     const gpxMapProvider = document.getElementById('gpx-map-provider');
+    const applyMainOffsetBtn = document.getElementById('apply-main-offset');
     
     gpxUpload.addEventListener('change', handleGPXUpload);
+    applyMainOffsetBtn.addEventListener('click', applyMainOffset);
     
     // Map provider change handler
     gpxMapProvider.addEventListener('change', (e) => {
@@ -523,6 +525,31 @@ function displayGPXFiles() {
         const totalPoints = trackIndices.reduce((sum, idx) => sum + state.gpxTracks[idx].points.length, 0);
         pointsSpan.textContent = `${totalPoints} pts`;
 
+        // Individual offset control
+        const offsetControl = document.createElement('div');
+        offsetControl.className = 'offset-control';
+        
+        const offsetInput = document.createElement('input');
+        offsetInput.type = 'text';
+        offsetInput.className = 'offset-input';
+        const trackIndex = trackIndices[0];
+        const offsetSeconds = state.gpxTracks[trackIndex].offset_seconds || 0;
+        offsetInput.value = formatOffsetSeconds(offsetSeconds);
+        offsetInput.placeholder = '±hh:mm:ss';
+        offsetInput.title = 'Time offset for this track';
+        
+        const applyBtn = document.createElement('button');
+        applyBtn.className = 'btn-mini';
+        applyBtn.textContent = '✓';
+        applyBtn.title = 'Apply offset';
+        applyBtn.onclick = (e) => {
+            e.stopPropagation();
+            applyTrackOffset(trackIndices, offsetInput.value);
+        };
+
+        offsetControl.appendChild(offsetInput);
+        offsetControl.appendChild(applyBtn);
+
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-btn';
         removeBtn.textContent = '×';
@@ -534,9 +561,76 @@ function displayGPXFiles() {
 
         chip.appendChild(nameSpan);
         chip.appendChild(pointsSpan);
+        chip.appendChild(offsetControl);
         chip.appendChild(removeBtn);
         container.appendChild(chip);
     });
+}
+
+function formatOffsetSeconds(seconds) {
+    const sign = seconds >= 0 ? '+' : '-';
+    const abs_seconds = Math.abs(seconds);
+    const hours = Math.floor(abs_seconds / 3600);
+    const minutes = Math.floor((abs_seconds % 3600) / 60);
+    const secs = abs_seconds % 60;
+    return `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+async function applyMainOffset() {
+    const offsetInput = document.getElementById('gpx-main-offset');
+    const offset = offsetInput.value;
+    
+    try {
+        const response = await fetch('/api/gpx/set-main-offset', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ offset: offset })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update state with backend's track list
+            state.gpxTracks = result.tracks;
+            // Redraw the display to show updated offsets
+            displayGPXFiles();
+        }
+    } catch (error) {
+        console.error('Error applying main offset:', error);
+        alert('Error applying offset.');
+    }
+}
+
+async function applyTrackOffset(trackIndices, offset) {
+    // Apply to the first track in the group (they're grouped by filename)
+    const trackIndex = trackIndices[0];
+    
+    try {
+        const response = await fetch('/api/gpx/set-track-offset', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                track_index: trackIndex,
+                offset: offset 
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update state with backend's track list
+            state.gpxTracks = result.tracks;
+            // Redraw the display to show updated offsets
+            displayGPXFiles();
+        }
+    } catch (error) {
+        console.error('Error applying track offset:', error);
+        alert('Error applying offset.');
+    }
 }
 
 async function removeGPXFile(trackIndices) {

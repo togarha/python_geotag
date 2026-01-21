@@ -12,6 +12,36 @@ class GPXManager:
     def __init__(self):
         self.pd_gpx_info: Optional[pd.DataFrame] = None
         self.tracks: List[Dict[str, Any]] = []
+        self.main_offset_seconds: int = 0  # Main offset in seconds
+    
+    def parse_offset_string(self, offset_str: str) -> int:
+        """Parse offset string like '+02:30:00' or '-01:00:00' to seconds"""
+        try:
+            offset_str = offset_str.strip()
+            sign = 1 if offset_str.startswith('+') else -1 if offset_str.startswith('-') else 1
+            offset_str = offset_str.lstrip('+-')
+            
+            parts = offset_str.split(':')
+            if len(parts) != 3:
+                return 0
+            
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            seconds = int(parts[2])
+            
+            total_seconds = sign * (hours * 3600 + minutes * 60 + seconds)
+            return total_seconds
+        except:
+            return 0
+    
+    def format_offset_seconds(self, seconds: int) -> str:
+        """Format seconds to offset string like '+02:30:00' or '-01:00:00'"""
+        sign = '+' if seconds >= 0 else '-'
+        abs_seconds = abs(seconds)
+        hours = abs_seconds // 3600
+        minutes = (abs_seconds % 3600) // 60
+        secs = abs_seconds % 60
+        return f"{sign}{hours:02d}:{minutes:02d}:{secs:02d}"
     
     def load_gpx(self, gpx_content: str, filename: str) -> Dict[str, Any]:
         """Load and parse a GPX file"""
@@ -65,12 +95,23 @@ class GPXManager:
         if existing_track_index is not None:
             return track_info  # Return but don't add
         
+        # Set initial offset to main offset
+        track_info['offset_seconds'] = self.main_offset_seconds
+        
         # Add to tracks list
         self.tracks.append(track_info)
         
-        # Create or append to DataFrame
+        # Create or append to DataFrame with adjusted times
         if points:
             new_df = pd.DataFrame(points)
+            
+            # Add original_time column before applying offset
+            if 'time' in new_df.columns:
+                new_df['original_time'] = new_df['time']
+                # Apply offset
+                offset_delta = timedelta(seconds=self.main_offset_seconds)
+                new_df['time'] = new_df['time'] + offset_delta
+            
             if self.pd_gpx_info is None:
                 self.pd_gpx_info = new_df
             else:
@@ -117,6 +158,45 @@ class GPXManager:
             # If no data remains, set to None
             if self.pd_gpx_info.empty:
                 self.pd_gpx_info = None
+    
+    def set_main_offset(self, offset_seconds: int):
+        """Set main offset and apply to all tracks"""
+        self.main_offset_seconds = offset_seconds
+        
+        # Update all track offsets
+        for track in self.tracks:
+            old_offset = track.get('offset_seconds', 0)
+            track['offset_seconds'] = offset_seconds
+            
+            # Update DataFrame times for this track
+            if self.pd_gpx_info is not None and 'track_name' in self.pd_gpx_info.columns:
+                mask = self.pd_gpx_info['track_name'] == track['name']
+                if mask.any() and 'original_time' in self.pd_gpx_info.columns:
+                    # Recompute time from original_time
+                    offset_delta = timedelta(seconds=offset_seconds)
+                    self.pd_gpx_info.loc[mask, 'time'] = self.pd_gpx_info.loc[mask, 'original_time'] + offset_delta
+        
+        # Re-sort by time
+        if self.pd_gpx_info is not None and 'time' in self.pd_gpx_info.columns:
+            self.pd_gpx_info = self.pd_gpx_info.sort_values('time').reset_index(drop=True)
+    
+    def set_track_offset(self, track_index: int, offset_seconds: int):
+        """Set offset for a specific track"""
+        if 0 <= track_index < len(self.tracks):
+            track = self.tracks[track_index]
+            track['offset_seconds'] = offset_seconds
+            
+            # Update DataFrame times for this track
+            if self.pd_gpx_info is not None and 'track_name' in self.pd_gpx_info.columns:
+                mask = self.pd_gpx_info['track_name'] == track['name']
+                if mask.any() and 'original_time' in self.pd_gpx_info.columns:
+                    # Recompute time from original_time
+                    offset_delta = timedelta(seconds=offset_seconds)
+                    self.pd_gpx_info.loc[mask, 'time'] = self.pd_gpx_info.loc[mask, 'original_time'] + offset_delta
+            
+            # Re-sort by time
+            if self.pd_gpx_info is not None and 'time' in self.pd_gpx_info.columns:
+                self.pd_gpx_info = self.pd_gpx_info.sort_values('time').reset_index(drop=True)
     
     def find_closest_point(self, target_time: datetime, time_window_minutes: int = 5) -> Optional[Dict[str, float]]:
         """Find the closest GPX point to a given time within a time window"""

@@ -91,6 +91,11 @@
             <div class="toolbar">
                 <label for="gpx-upload" class="btn btn-primary">📂 Select GPX Files</label>
                 <input type="file" id="gpx-upload" accept=".gpx" multiple style="display: none;">
+                <div class="control-group" style="margin-left: 16px;">
+                    <label for="gpx-main-offset">Time Offset:</label>
+                    <input type="text" id="gpx-main-offset" value="+00:00:00" placeholder="±hh:mm:ss">
+                    <button id="apply-main-offset" class="btn btn-secondary" title="Apply to all tracks">✓</button>
+                </div>
                 <div class="control-group" style="margin-left: auto;">
                     <label for="gpx-map-provider">Map:</label>
                     <select id="gpx-map-provider">

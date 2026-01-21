@@ -185,6 +185,7 @@ async def get_photo_image(index: int):
 async def upload_gpx(files: List[UploadFile] = File(...)):
     """Load and parse one or more GPX files"""
     try:
+        # Don't clear - append new tracks to existing ones
         results = []
         for file in files:
             content = await file.read()
@@ -194,7 +195,37 @@ async def upload_gpx(files: List[UploadFile] = File(...)):
         return {
             "success": True,
             "files_loaded": len(results),
+            "tracks": gpx_manager.get_all_tracks()  # Return ALL tracks
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/gpx/remove")
+async def remove_gpx_tracks(request: dict):
+    """Remove specific GPX tracks by indices"""
+    try:
+        indices = request.get('indices', [])
+        
+        gpx_manager.remove_tracks_by_indices(indices)
+        
+        return {
+            "success": True,
             "tracks": gpx_manager.get_all_tracks()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/gpx/clear")
+async def clear_gpx_tracks():
+    """Clear all GPX tracks"""
+    try:
+        gpx_manager.clear_tracks()
+        
+        return {
+            "success": True,
+            "tracks": []
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

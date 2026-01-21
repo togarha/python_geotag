@@ -55,6 +55,16 @@ class GPXManager:
                 'west': min(lngs)
             }
         
+        # Check if track with same name already exists
+        existing_track_index = None
+        for idx, existing_track in enumerate(self.tracks):
+            if existing_track['name'] == track_info['name']:
+                existing_track_index = idx
+                break
+        
+        if existing_track_index is not None:
+            return track_info  # Return but don't add
+        
         # Add to tracks list
         self.tracks.append(track_info)
         
@@ -80,6 +90,34 @@ class GPXManager:
         """Get all loaded track information"""
         return self.tracks
     
+    def clear_tracks(self):
+        """Clear all loaded tracks"""
+        self.tracks = []
+        self.pd_gpx_info = None
+    
+    def remove_tracks_by_indices(self, indices: List[int]):
+        """Remove specific tracks by their indices"""
+        # Sort indices in reverse to maintain correct positions during removal
+        sorted_indices = sorted(indices, reverse=True)
+        
+        # Collect track names to remove from DataFrame
+        track_names_to_remove = []
+        for idx in sorted_indices:
+            if 0 <= idx < len(self.tracks):
+                track_name = self.tracks[idx]['name']
+                track_names_to_remove.append(track_name)
+                self.tracks.pop(idx)
+        
+        # Remove points from DataFrame by filtering out the track names
+        if self.pd_gpx_info is not None and 'track_name' in self.pd_gpx_info.columns:
+            # Filter out rows where track_name is in the removal list
+            self.pd_gpx_info = self.pd_gpx_info[~self.pd_gpx_info['track_name'].isin(track_names_to_remove)]
+            self.pd_gpx_info = self.pd_gpx_info.reset_index(drop=True)
+            
+            # If no data remains, set to None
+            if self.pd_gpx_info.empty:
+                self.pd_gpx_info = None
+    
     def find_closest_point(self, target_time: datetime, time_window_minutes: int = 5) -> Optional[Dict[str, float]]:
         """Find the closest GPX point to a given time within a time window"""
         if not self.has_data():
@@ -94,9 +132,6 @@ class GPXManager:
         
         mask = (self.pd_gpx_info['time'] >= time_min) & (self.pd_gpx_info['time'] <= time_max)
         nearby_points = self.pd_gpx_info[mask]
-        
-        if nearby_points.empty:
-            return None
         
         # Find closest point by time difference
         nearby_points = nearby_points.copy()

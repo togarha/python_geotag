@@ -360,12 +360,69 @@ body {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* GPX Files Container */
+.gpx-files-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.gpx-files-container:empty::before {
+    content: 'No GPX files loaded';
+    color: #999;
+    font-style: italic;
+    padding: 10px 0;
+}
+
+.gpx-file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: #3498db;
+    color: white;
+    border-radius: 16px;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.gpx-file-chip .file-name {
+    font-weight: 500;
+}
+
+.gpx-file-chip .file-points {
+    opacity: 0.8;
+    font-size: 12px;
+}
+
+.gpx-file-chip .remove-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+    transition: background-color 0.2s;
+}
+
+.gpx-file-chip .remove-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
 .status-text {
     padding: 8px 15px;
     background: #ecf0f1;
     border-radius: 4px;
     font-size: 14px;
 }
+
 
 /* Modal */
 .modal {

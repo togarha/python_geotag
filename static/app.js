@@ -408,20 +408,32 @@ async function handleGPXUpload(e) {
         const result = await response.json();
         
         if (result.success) {
+            // Backend returns all tracks - use as source of truth
             state.gpxTracks = result.tracks;
             displayGPXTracks();
-            
-            const statusEl = document.getElementById('gpx-status');
-            statusEl.textContent = `${result.files_loaded} GPX file(s) loaded`;
+            displayGPXFiles();
         }
     } catch (error) {
         console.error('Error loading GPX:', error);
         alert('Error loading GPX files.');
     }
+    
+    // Reset file input to allow re-uploading the same files
+    e.target.value = '';
 }
 
 function displayGPXTracks() {
+    // Initialize map if not already, or clear and reinitialize to remove old polylines
     if (!state.gpxMap) {
+        initializeGPXMap();
+    } else {
+        // Clear existing map and reinitialize to remove old polylines
+        if (state.gpxMapProvider === 'google') {
+            state.gpxMap = null;
+        } else {
+            state.gpxMap.remove();
+            state.gpxMap = null;
+        }
         initializeGPXMap();
     }
 
@@ -473,21 +485,101 @@ function displayGPXTracks() {
     }
 
     // Display track info
-    displayGPXInfo();
+    displayGPXFiles();
 }
 
-function displayGPXInfo() {
-    const gpxInfo = document.getElementById('gpx-info');
-    gpxInfo.innerHTML = '<h3>Loaded Tracks</h3>';
+function displayGPXFiles() {
+    const container = document.getElementById('gpx-files-container');
+    container.innerHTML = '';
 
-    const list = document.createElement('ul');
-    state.gpxTracks.forEach(track => {
-        const item = document.createElement('li');
-        item.textContent = `${track.name} (${track.points.length} points)`;
-        list.appendChild(item);
+    if (state.gpxTracks.length === 0) {
+        // Container will show "No GPX files loaded" via CSS ::before
+        return;
+    }
+
+    // Group tracks by filename
+    const fileMap = new Map();
+    state.gpxTracks.forEach((track, index) => {
+        // Extract filename from track name
+        const fileName = track.file_name || track.name.split(' - ')[0] || track.name;
+        
+        if (!fileMap.has(fileName)) {
+            fileMap.set(fileName, []);
+        }
+        fileMap.get(fileName).push(index);
     });
 
-    gpxInfo.appendChild(list);
+    // Create chip for each file
+    fileMap.forEach((trackIndices, fileName) => {
+        const chip = document.createElement('div');
+        chip.className = 'gpx-file-chip';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'file-name';
+        nameSpan.textContent = fileName;
+
+        const pointsSpan = document.createElement('span');
+        pointsSpan.className = 'file-points';
+        const totalPoints = trackIndices.reduce((sum, idx) => sum + state.gpxTracks[idx].points.length, 0);
+        pointsSpan.textContent = `${totalPoints} pts`;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove this GPX file';
+        removeBtn.onclick = (e) => {
+            e.stopPropagation();
+            removeGPXFile(trackIndices);
+        };
+
+        chip.appendChild(nameSpan);
+        chip.appendChild(pointsSpan);
+        chip.appendChild(removeBtn);
+        container.appendChild(chip);
+    });
+}
+
+async function removeGPXFile(trackIndices) {
+    try {
+        // Send removal request to backend
+        const response = await fetch('/api/gpx/remove', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ indices: trackIndices })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update state with backend's track list (source of truth)
+            state.gpxTracks = result.tracks;
+            
+            // Clear and destroy the existing map properly
+            if (state.gpxMap) {
+                if (state.gpxMapProvider === 'google') {
+                    state.gpxMap = null;
+                } else {
+                    state.gpxMap.remove();
+                    state.gpxMap = null;
+                }
+            }
+
+            // Always reinitialize the map (empty or with remaining tracks)
+            if (state.gpxTracks.length > 0) {
+                displayGPXTracks();
+            } else {
+                initializeGPXMap();
+            }
+
+            // Update file chips display
+            displayGPXFiles();
+        }
+    } catch (error) {
+        console.error('Error removing GPX tracks:', error);
+        alert('Error removing GPX tracks.');
+    }
 }
 
 // ==================== Large Photo View ====================

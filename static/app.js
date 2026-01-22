@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeViews();
     initializeThumbnailsView();
     initializeGPXView();
+    initializePositionsView();
     initializeLargePhotoView();
     initializeKeyboardShortcuts();
 });
@@ -696,6 +697,164 @@ async function removeGPXFile(trackIndices) {
     }
 }
 
+// ==================== Positions View ====================
+
+function initializePositionsView() {
+    const positionsUpload = document.getElementById('positions-upload');
+    positionsUpload.addEventListener('change', handlePositionsUpload);
+    
+    // Load existing positions if any
+    loadPositions();
+}
+
+async function handlePositionsUpload(event) {
+    const files = event.target.files;
+    if (files.length === 0) return;
+    
+    const formData = new FormData();
+    for (let file of files) {
+        formData.append('files', file);
+    }
+    
+    try {
+        const response = await fetch('/api/positions/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayPositions(result.positions);
+        } else {
+            alert('Error loading position files.');
+        }
+    } catch (error) {
+        console.error('Error uploading position files:', error);
+        alert('Error loading position files.');
+    }
+    
+    // Reset file input
+    event.target.value = '';
+}
+
+async function loadPositions() {
+    try {
+        const response = await fetch('/api/positions');
+        const result = await response.json();
+        
+        if (result.success) {
+            displayPositions(result.positions, result.by_file);
+        }
+    } catch (error) {
+        console.error('Error loading positions:', error);
+    }
+}
+
+function displayPositions(positions, byFile = null) {
+    const container = document.getElementById('positions-container');
+    container.innerHTML = '';
+    
+    if (!positions || positions.length === 0) {
+        return;
+    }
+    
+    // Group by file if not provided
+    if (!byFile) {
+        byFile = {};
+        positions.forEach(pos => {
+            const filename = pos.source_file;
+            if (!byFile[filename]) {
+                byFile[filename] = [];
+            }
+            byFile[filename].push(pos);
+        });
+    }
+    
+    // Create sections for each file
+    for (const [filename, filePositions] of Object.entries(byFile)) {
+        const fileSection = document.createElement('div');
+        fileSection.className = 'position-file-section';
+        
+        const header = document.createElement('div');
+        header.className = 'position-file-header';
+        
+        const fileInfo = document.createElement('div');
+        const fileName = document.createElement('span');
+        fileName.className = 'position-file-name';
+        fileName.textContent = filename;
+        
+        const fileCount = document.createElement('span');
+        fileCount.className = 'position-file-count';
+        fileCount.textContent = ` (${filePositions.length} position${filePositions.length !== 1 ? 's' : ''})`;
+        
+        fileInfo.appendChild(fileName);
+        fileInfo.appendChild(fileCount);
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'position-file-remove';
+        removeBtn.textContent = '🗑️ Remove';
+        removeBtn.onclick = () => removePositionFile(filename);
+        
+        header.appendChild(fileInfo);
+        header.appendChild(removeBtn);
+        
+        const positionList = document.createElement('div');
+        positionList.className = 'position-list';
+        
+        filePositions.forEach(pos => {
+            const posItem = document.createElement('div');
+            posItem.className = 'position-item';
+            
+            const posInfo = document.createElement('div');
+            const posName = document.createElement('div');
+            posName.className = 'position-name';
+            posName.textContent = pos.name;
+            
+            const posCoords = document.createElement('div');
+            posCoords.className = 'position-coords';
+            let coordsText = `${pos.latitude.toFixed(6)}, ${pos.longitude.toFixed(6)}`;
+            if (pos.altitude !== null && pos.altitude !== undefined) {
+                coordsText += ` (${pos.altitude.toFixed(1)} m)`;
+            }
+            posCoords.textContent = coordsText;
+            
+            posInfo.appendChild(posName);
+            posInfo.appendChild(posCoords);
+            posItem.appendChild(posInfo);
+            
+            positionList.appendChild(posItem);
+        });
+        
+        fileSection.appendChild(header);
+        fileSection.appendChild(positionList);
+        container.appendChild(fileSection);
+    }
+}
+
+async function removePositionFile(filename) {
+    if (!confirm(`Remove all positions from "${filename}"?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/positions/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayPositions(result.positions);
+        }
+    } catch (error) {
+        console.error('Error removing position file:', error);
+        alert('Error removing position file.');
+    }
+}
+
 // ==================== Large Photo View ====================
 
 function initializeLargePhotoView() {
@@ -707,6 +866,7 @@ function initializeLargePhotoView() {
     const deleteMarkerBtn = document.getElementById('delete-manual-marker');
     const copyFromPreviousBtn = document.getElementById('copy-from-previous');
     const setManualPositionBtn = document.getElementById('set-manual-position');
+    const setPredefinedPositionBtn = document.getElementById('set-predefined-position');
 
     closeBtn.addEventListener('click', closeLargePhotoView);
     prevBtn.addEventListener('click', () => navigatePhoto(-1));
@@ -721,6 +881,7 @@ function initializeLargePhotoView() {
     deleteMarkerBtn.addEventListener('click', deleteManualMarker);
     copyFromPreviousBtn.addEventListener('click', copyFromPreviousPhoto);
     setManualPositionBtn.addEventListener('click', setManualPositionManually);
+    setPredefinedPositionBtn.addEventListener('click', showPredefinedPositionsModal);
 
     // Close on background click
     modal.addEventListener('click', (e) => {
@@ -775,6 +936,16 @@ async function displayLargePhoto(index) {
         
         // Set manual position button is always enabled when a photo is displayed
         document.getElementById('set-manual-position').disabled = false;
+        
+        // Set predefined position button is enabled when positions are loaded
+        fetch('/api/positions')
+            .then(res => res.json())
+            .then(result => {
+                document.getElementById('set-predefined-position').disabled = !result.success || !result.positions || result.positions.length === 0;
+            })
+            .catch(() => {
+                document.getElementById('set-predefined-position').disabled = true;
+            });
         
         // Display EXIF info
         displayEXIFInfo(photoData);
@@ -1368,6 +1539,89 @@ async function setManualPositionManually() {
     } catch (error) {
         console.error('Error setting manual position:', error);
         alert('Error setting position: ' + error.message);
+    }
+}
+
+async function showPredefinedPositionsModal() {
+    if (state.selectedPhotoIndex === null) return;
+    
+    try {
+        // Fetch available positions
+        const response = await fetch('/api/positions');
+        const result = await response.json();
+        
+        if (!result.success || !result.positions || result.positions.length === 0) {
+            alert('No predefined positions available. Load YAML files from the Positions View first.');
+            return;
+        }
+        
+        // Show modal
+        const modal = document.getElementById('positions-modal');
+        const positionsList = document.getElementById('positions-list');
+        const closeBtn = document.getElementById('close-positions-modal');
+        
+        // Clear previous content
+        positionsList.innerHTML = '';
+        
+        // Create position items
+        result.positions.forEach((pos, index) => {
+            const item = document.createElement('div');
+            item.className = 'position-selection-item';
+            
+            const name = document.createElement('div');
+            name.className = 'position-name';
+            name.textContent = pos.name;
+            
+            const coords = document.createElement('div');
+            coords.className = 'position-coords';
+            let coordsText = `${pos.latitude.toFixed(6)}, ${pos.longitude.toFixed(6)}`;
+            if (pos.altitude !== null && pos.altitude !== undefined) {
+                coordsText += ` (${pos.altitude.toFixed(1)} m)`;
+            }
+            coords.textContent = coordsText;
+            
+            const source = document.createElement('div');
+            source.className = 'position-source';
+            source.textContent = `from ${pos.source_file}`;
+            
+            item.appendChild(name);
+            item.appendChild(coords);
+            item.appendChild(source);
+            
+            // Click handler
+            item.addEventListener('click', async () => {
+                modal.classList.remove('active');
+                
+                // Place manual marker with selected position
+                if (state.mapProvider === 'google') {
+                    const latLng = new google.maps.LatLng(pos.latitude, pos.longitude);
+                    await placeManualMarker(latLng, state.selectedPhotoIndex, pos.altitude);
+                } else {
+                    const latLng = { lat: pos.latitude, lng: pos.longitude };
+                    await placeManualMarker(latLng, state.selectedPhotoIndex, pos.altitude);
+                }
+            });
+            
+            positionsList.appendChild(item);
+        });
+        
+        // Show modal
+        modal.classList.add('active');
+        
+        // Close button handler
+        closeBtn.onclick = () => {
+            modal.classList.remove('active');
+        };
+        
+        // Close on background click
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        };
+    } catch (error) {
+        console.error('Error selecting predefined position:', error);
+        alert('Error selecting predefined position: ' + error.message);
     }
 }
 

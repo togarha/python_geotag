@@ -1,0 +1,16 @@
+# Minimal test positions file
+# For quick testing with just a few positions
+
+- name: "Test Location 1"
+  latitude: 40.7128
+  longitude: -74.0060
+  altitude: 10
+
+- name: "Test Location 2"
+  latitude: 34.0522
+  longitude: -118.2437
+  altitude: 71
+
+- name: "Test Location 3 (no altitude)"
+  latitude: 51.5074
+  longitude: -0.1278

@@ -23,6 +23,7 @@
             <ul class="menu-items">
                 <li><a href="#" data-view="thumbnails" class="menu-link active">📷 Photo Thumbnails</a></li>
                 <li><a href="#" data-view="gpx" class="menu-link">🗺️ GPX View</a></li>
+                <li><a href="#" data-view="positions" class="menu-link">📍 Positions View</a></li>
             </ul>
         </nav>
     </div>
@@ -119,6 +120,18 @@
             </div>
         </div>
 
+        <!-- Positions View -->
+        <div id="positions-view" class="view-container">
+            <div class="toolbar">
+                <label for="positions-upload" class="btn btn-primary">📂 Select YAML Files</label>
+                <input type="file" id="positions-upload" accept=".yaml,.yml" multiple style="display: none;">
+            </div>
+            <div id="positions-info" class="positions-info">
+                <h3>Loaded Positions</h3>
+                <div id="positions-container" class="positions-container"></div>
+            </div>
+        </div>
+
         <!-- Large Photo View (Modal) -->
         <div id="large-photo-modal" class="modal">
             <div class="modal-content large-photo-content">
@@ -163,6 +176,9 @@
                                 <button id="set-manual-position" class="btn btn-primary" disabled title="Set Manual Position">
                                     ✏️
                                 </button>
+                                <button id="set-predefined-position" class="btn btn-success" disabled title="Set Predefined Position">
+                                    📍
+                                </button>
                                 <button id="delete-manual-marker" class="btn btn-danger" disabled title="Delete Manual Marker">
                                     🗑️
                                 </button>
@@ -179,6 +195,19 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Predefined Positions Selection Modal -->
+    <div id="positions-modal" class="modal">
+        <div class="modal-content positions-modal-content">
+            <div class="modal-header">
+                <h3>Select Predefined Position</h3>
+                <button class="close-modal" id="close-positions-modal">&times;</button>
+            </div>
+            <div class="positions-modal-body">
+                <div id="positions-list" class="positions-selection-list"></div>
+            </div>
+        </div>
     </div>
 
     <script src="/static/app.js"></script>

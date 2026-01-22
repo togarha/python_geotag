@@ -1,0 +1,110 @@
+# Sample predefined positions for testing
+# Each position requires: name, latitude, longitude
+# Altitude is optional
+
+# European landmarks
+- name: "Eiffel Tower, Paris"
+  latitude: 48.8584
+  longitude: 2.2945
+  altitude: 324
+
+- name: "Big Ben, London"
+  latitude: 51.5007
+  longitude: -0.1246
+  altitude: 96
+
+- name: "Colosseum, Rome"
+  latitude: 41.8902
+  longitude: 12.4922
+  altitude: 59
+
+# Asian landmarks
+- name: "Mount Fuji Summit"
+  latitude: 35.3606
+  longitude: 138.7274
+  altitude: 3776
+
+- name: "Great Wall of China"
+  latitude: 40.4319
+  longitude: 116.5704
+  altitude: 1015
+
+- name: "Taj Mahal, India"
+  latitude: 27.1751
+  longitude: 78.0421
+  altitude: 171
+
+# American landmarks
+- name: "Statue of Liberty, New York"
+  latitude: 40.6892
+  longitude: -74.0445
+  altitude: 93
+
+- name: "Golden Gate Bridge, San Francisco"
+  latitude: 37.8199
+  longitude: -122.4783
+  altitude: 227
+
+- name: "Christ the Redeemer, Rio"
+  latitude: -22.9519
+  longitude: -43.2105
+  altitude: 710
+
+# Natural wonders
+- name: "Mount Everest Base Camp"
+  latitude: 28.0026
+  longitude: 86.8528
+  altitude: 5364
+
+- name: "Grand Canyon Visitor Center"
+  latitude: 36.0544
+  longitude: -112.1401
+  altitude: 2134
+
+- name: "Victoria Falls"
+  latitude: -17.9243
+  longitude: 25.8572
+  altitude: 915
+
+# Oceania
+- name: "Sydney Opera House"
+  latitude: -33.8568
+  longitude: 151.2153
+  altitude: 6
+
+- name: "Uluru (Ayers Rock)"
+  latitude: -25.3444
+  longitude: 131.0369
+  altitude: 863
+
+# Africa
+- name: "Pyramids of Giza"
+  latitude: 29.9792
+  longitude: 31.1342
+  altitude: 146
+
+- name: "Table Mountain, Cape Town"
+  latitude: -33.9628
+  longitude: 18.4098
+  altitude: 1085
+
+# Position without altitude (should work fine)
+- name: "Stonehenge, UK"
+  latitude: 51.1789
+  longitude: -1.8262
+
+# Test edge cases
+- name: "North Pole"
+  latitude: 90.0
+  longitude: 0.0
+  altitude: 0
+
+- name: "Equator at Prime Meridian"
+  latitude: 0.0
+  longitude: 0.0
+  altitude: 0
+
+- name: "International Date Line"
+  latitude: 0.0
+  longitude: 180.0
+  altitude: 0

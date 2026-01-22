@@ -15,6 +15,7 @@ import math
 from .photo_manager import PhotoManager
 from .gpx_manager import GPXManager
 from .elevation_service import ElevationService
+from .positions_manager import PositionsManager
 
 app = FastAPI(title="Geotag Application")
 
@@ -65,6 +66,7 @@ app.add_middleware(
 photo_manager = PhotoManager()
 gpx_manager = GPXManager()
 elevation_service = ElevationService()
+positions_manager = PositionsManager()
 
 # Serve static files
 static_path = Path(__file__).parent.parent / "static"
@@ -355,6 +357,58 @@ async def get_gpx_tracks():
     try:
         tracks = gpx_manager.get_all_tracks()
         return {"success": True, "tracks": tracks}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/positions/upload")
+async def upload_positions(files: List[UploadFile] = File(...)):
+    """Load and parse one or more YAML files with predefined positions"""
+    try:
+        results = []
+        for file in files:
+            content = await file.read()
+            result = positions_manager.load_yaml(content.decode('utf-8'), file.filename)
+            results.append(result)
+        
+        return {
+            "success": True,
+            "files_loaded": len(results),
+            "positions": positions_manager.get_all_positions()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/positions/remove")
+async def remove_positions(request: dict):
+    """Remove positions from a specific file"""
+    try:
+        filename = request.get('filename')
+        if not filename:
+            raise HTTPException(status_code=400, detail="filename is required")
+        
+        positions_manager.remove_positions_by_file(filename)
+        
+        return {
+            "success": True,
+            "positions": positions_manager.get_all_positions()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/positions")
+async def get_positions():
+    """Get all loaded predefined positions"""
+    try:
+        positions = positions_manager.get_all_positions()
+        positions_by_file = positions_manager.get_positions_by_file()
+        return {
+            "success": True,
+            "positions": positions,
+            "by_file": positions_by_file
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -1,0 +1,26 @@
+# Example predefined positions file
+# Format: List of positions with name, latitude, longitude, and optional altitude
+
+- name: "Home"
+  latitude: 43.3183
+  longitude: -1.9812
+  altitude: 10
+
+- name: "Mount Everest Base Camp"
+  latitude: 28.0026
+  longitude: 86.8528
+  altitude: 5364
+
+- name: "Eiffel Tower"
+  latitude: 48.8584
+  longitude: 2.2945
+  altitude: 324
+
+- name: "Statue of Liberty"
+  latitude: 40.6892
+  longitude: -74.0445
+
+- name: "Great Pyramid of Giza"
+  latitude: 29.9792
+  longitude: 31.1342
+  altitude: 146

@@ -789,9 +789,13 @@ function displayEXIFInfo(photo) {
     const exifInfo = document.getElementById('exif-info');
     
     // Format coordinates
-    const formatCoords = (lat, lon) => {
+    const formatCoords = (lat, lon, alt = null) => {
         if (lat === -360 || lon === -360) return 'N/A';
-        return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+        const coords = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+        if (alt !== null && alt !== undefined) {
+            return `${coords} (${alt.toFixed(1)} m)`;
+        }
+        return coords;
     };
     
     // Format date/time
@@ -823,8 +827,8 @@ function displayEXIFInfo(photo) {
         },
         {
             label: 'EXIF Position',
-            current: formatCoords(photo.exif_latitude, photo.exif_longitude),
-            new: formatCoords(photo.final_latitude, photo.final_longitude)
+            current: formatCoords(photo.exif_latitude, photo.exif_longitude, photo.exif_altitude),
+            new: formatCoords(photo.final_latitude, photo.final_longitude, photo.final_altitude)
         }
     ];
 
@@ -890,8 +894,11 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
         bounds.extend(state.photoMapMarkers.exif.getPosition());
         hasMarkers = true;
         
-        document.getElementById('exif-coords').textContent = 
-            `${photo.exif_latitude.toFixed(6)}, ${photo.exif_longitude.toFixed(6)}`;
+        let exifCoordsText = `${photo.exif_latitude.toFixed(6)}, ${photo.exif_longitude.toFixed(6)}`;
+        if (photo.exif_altitude !== null && photo.exif_altitude !== undefined) {
+            exifCoordsText += ` (${photo.exif_altitude.toFixed(1)} m)`;
+        }
+        document.getElementById('exif-coords').textContent = exifCoordsText;
     } else {
         document.getElementById('exif-coords').textContent = '--';
     }
@@ -914,8 +921,11 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
         bounds.extend(state.photoMapMarkers.gpx.getPosition());
         hasMarkers = true;
         
-        document.getElementById('gpx-coords').textContent = 
-            `${photo.gpx_latitude.toFixed(6)}, ${photo.gpx_longitude.toFixed(6)}`;
+        let gpxCoordsText = `${photo.gpx_latitude.toFixed(6)}, ${photo.gpx_longitude.toFixed(6)}`;
+        if (photo.gpx_altitude !== null && photo.gpx_altitude !== undefined) {
+            gpxCoordsText += ` (${photo.gpx_altitude.toFixed(1)} m)`;
+        }
+        document.getElementById('gpx-coords').textContent = gpxCoordsText;
     } else {
         document.getElementById('gpx-coords').textContent = '--';
     }
@@ -946,8 +956,11 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
         bounds.extend(state.photoMapMarkers.manual.getPosition());
         hasMarkers = true;
         
-        document.getElementById('manual-coords').textContent = 
-            `${photo.manual_latitude.toFixed(6)}, ${photo.manual_longitude.toFixed(6)}`;
+        let manualCoordsText = `${photo.manual_latitude.toFixed(6)}, ${photo.manual_longitude.toFixed(6)}`;
+        if (photo.manual_altitude !== null && photo.manual_altitude !== undefined) {
+            manualCoordsText += ` (${photo.manual_altitude.toFixed(1)} m)`;
+        }
+        document.getElementById('manual-coords').textContent = manualCoordsText;
         document.getElementById('delete-manual-marker').disabled = false;
     } else {
         document.getElementById('manual-coords').textContent = '--';
@@ -973,8 +986,11 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
         bounds.extend(state.photoMapMarkers.final.getPosition());
         hasMarkers = true;
         
-        document.getElementById('final-coords').textContent = 
-            `${photo.final_latitude.toFixed(6)}, ${photo.final_longitude.toFixed(6)}`;
+        let finalCoordsText = `${photo.final_latitude.toFixed(6)}, ${photo.final_longitude.toFixed(6)}`;
+        if (photo.final_altitude !== null && photo.final_altitude !== undefined) {
+            finalCoordsText += ` (${photo.final_altitude.toFixed(1)} m)`;
+        }
+        document.getElementById('final-coords').textContent = finalCoordsText;
     } else {
         document.getElementById('final-coords').textContent = '--';
     }
@@ -1033,8 +1049,11 @@ function displayPhotoMapOSM(photo, index, mapElement) {
         
         bounds.push([photo.exif_latitude, photo.exif_longitude]);
         
-        document.getElementById('exif-coords').textContent = 
-            `${photo.exif_latitude.toFixed(6)}, ${photo.exif_longitude.toFixed(6)}`;
+        let exifCoordsText = `${photo.exif_latitude.toFixed(6)}, ${photo.exif_longitude.toFixed(6)}`;
+        if (photo.exif_altitude !== null && photo.exif_altitude !== undefined) {
+            exifCoordsText += ` (${photo.exif_altitude.toFixed(1)} m)`;
+        }
+        document.getElementById('exif-coords').textContent = exifCoordsText;
     } else {
         document.getElementById('exif-coords').textContent = '--';
     }
@@ -1055,8 +1074,11 @@ function displayPhotoMapOSM(photo, index, mapElement) {
         
         bounds.push([photo.gpx_latitude, photo.gpx_longitude]);
         
-        document.getElementById('gpx-coords').textContent = 
-            `${photo.gpx_latitude.toFixed(6)}, ${photo.gpx_longitude.toFixed(6)}`;
+        let gpxCoordsText = `${photo.gpx_latitude.toFixed(6)}, ${photo.gpx_longitude.toFixed(6)}`;
+        if (photo.gpx_altitude !== null && photo.gpx_altitude !== undefined) {
+            gpxCoordsText += ` (${photo.gpx_altitude.toFixed(1)} m)`;
+        }
+        document.getElementById('gpx-coords').textContent = gpxCoordsText;
     } else {
         document.getElementById('gpx-coords').textContent = '--';
     }
@@ -1083,8 +1105,11 @@ function displayPhotoMapOSM(photo, index, mapElement) {
         
         bounds.push([photo.manual_latitude, photo.manual_longitude]);
         
-        document.getElementById('manual-coords').textContent = 
-            `${photo.manual_latitude.toFixed(6)}, ${photo.manual_longitude.toFixed(6)}`;
+        let manualCoordsText = `${photo.manual_latitude.toFixed(6)}, ${photo.manual_longitude.toFixed(6)}`;
+        if (photo.manual_altitude !== null && photo.manual_altitude !== undefined) {
+            manualCoordsText += ` (${photo.manual_altitude.toFixed(1)} m)`;
+        }
+        document.getElementById('manual-coords').textContent = manualCoordsText;
         document.getElementById('delete-manual-marker').disabled = false;
     } else {
         document.getElementById('manual-coords').textContent = '--';
@@ -1108,8 +1133,11 @@ function displayPhotoMapOSM(photo, index, mapElement) {
         
         bounds.push([photo.final_latitude, photo.final_longitude]);
         
-        document.getElementById('final-coords').textContent = 
-            `${photo.final_latitude.toFixed(6)}, ${photo.final_longitude.toFixed(6)}`;
+        let finalCoordsText = `${photo.final_latitude.toFixed(6)}, ${photo.final_longitude.toFixed(6)}`;
+        if (photo.final_altitude !== null && photo.final_altitude !== undefined) {
+            finalCoordsText += ` (${photo.final_altitude.toFixed(1)} m)`;
+        }
+        document.getElementById('final-coords').textContent = finalCoordsText;
     } else {
         document.getElementById('final-coords').textContent = '--';
     }
@@ -1127,13 +1155,13 @@ function displayPhotoMapOSM(photo, index, mapElement) {
     }
 }
 
-async function placeManualMarker(latLng, index) {
+async function placeManualMarker(latLng, index, altitude = null) {
     // Handle both Google Maps and Leaflet LatLng objects
     const lat = latLng.lat !== undefined ? (typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat) : latLng.latitude;
     const lng = latLng.lng !== undefined ? (typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng) : latLng.longitude;
     
     // Update manual location and wait for backend response
-    await updateManualLocation(latLng, index);
+    await updateManualLocation(latLng, index, altitude);
     
     // After updating, refresh the map display with the updated photo data from state
     // The updateManualLocation has already updated state.photos[index] with backend response
@@ -1188,19 +1216,26 @@ function updateFinalMarkerOSM(photo) {
     }
 }
 
-async function updateManualLocation(latLng, index) {
+async function updateManualLocation(latLng, index, altitude = null) {
     try {
         // Handle both Google Maps and Leaflet LatLng objects
         const lat = latLng.lat !== undefined ? (typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat) : latLng.latitude;
         const lng = latLng.lng !== undefined ? (typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng) : latLng.longitude;
         
+        const requestBody = {
+            latitude: lat,
+            longitude: lng
+        };
+        
+        // Include altitude if provided
+        if (altitude !== null && altitude !== undefined) {
+            requestBody.altitude = altitude;
+        }
+        
         const response = await fetch(`/api/photos/${index}/manual-location`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                latitude: lat,
-                longitude: lng
-            })
+            body: JSON.stringify(requestBody)
         });
         
         const result = await response.json();
@@ -1208,17 +1243,6 @@ async function updateManualLocation(latLng, index) {
         // Update local state with complete photo data including final coordinates
         if (result.success && state.photos[index]) {
             Object.assign(state.photos[index], result.photo);
-        }
-        
-        // Update coordinates display
-        document.getElementById('manual-coords').textContent = 
-            `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        document.getElementById('delete-manual-marker').disabled = false;
-        
-        // Update final coordinates display
-        if (result.photo && result.photo.final_latitude !== -360 && result.photo.final_longitude !== -360) {
-            document.getElementById('final-coords').textContent = 
-                `${result.photo.final_latitude.toFixed(6)}, ${result.photo.final_longitude.toFixed(6)}`;
         }
         
         // Refresh the EXIF info table to show updated final position
@@ -1252,48 +1276,15 @@ async function copyFromPreviousPhoto() {
         // Copy manual coordinates if they exist, otherwise copy final coordinates
         const latToCopy = hasManual ? previousPhoto.manual_latitude : previousPhoto.final_latitude;
         const lngToCopy = hasManual ? previousPhoto.manual_longitude : previousPhoto.final_longitude;
+        const altToCopy = hasManual ? previousPhoto.manual_altitude : previousPhoto.final_altitude;
         
         // Set manual marker on current photo using the copied coordinates
         if (state.mapProvider === 'google') {
             const latLng = new google.maps.LatLng(latToCopy, lngToCopy);
-            await placeManualMarker(latLng, state.selectedPhotoIndex);
+            await placeManualMarker(latLng, state.selectedPhotoIndex, altToCopy);
         } else {
             const latLng = { lat: latToCopy, lng: lngToCopy };
-            await placeManualMarker(latLng, state.selectedPhotoIndex);
-        }
-    } catch (error) {
-        console.error('Error copying from previous photo:', error);
-    }
-}
-
-async function copyFromPreviousPhoto() {
-    if (state.selectedPhotoIndex === null || state.selectedPhotoIndex === 0) return;
-    
-    const previousIndex = state.selectedPhotoIndex - 1;
-    const previousPhoto = state.photos[previousIndex];
-    
-    if (!previousPhoto) return;
-    
-    // Check if previous photo has final coordinates to copy
-    const hasFinal = previousPhoto.final_latitude !== -360 && previousPhoto.final_longitude !== -360;
-    
-    if (!hasFinal) {
-        alert('Previous photo has no position to copy.');
-        return;
-    }
-    
-    try {
-        // Copy final coordinates from previous photo
-        const latToCopy = previousPhoto.final_latitude;
-        const lngToCopy = previousPhoto.final_longitude;
-        
-        // Set manual marker on current photo using the copied coordinates
-        if (state.mapProvider === 'google') {
-            const latLng = new google.maps.LatLng(latToCopy, lngToCopy);
-            await placeManualMarker(latLng, state.selectedPhotoIndex);
-        } else {
-            const latLng = { lat: latToCopy, lng: lngToCopy };
-            await placeManualMarker(latLng, state.selectedPhotoIndex);
+            await placeManualMarker(latLng, state.selectedPhotoIndex, altToCopy);
         }
     } catch (error) {
         console.error('Error copying from previous photo:', error);
@@ -1336,12 +1327,24 @@ async function deleteManualMarker() {
             updateFinalMarkerOSM(state.photos[state.selectedPhotoIndex]);
         }
         
-        // Update final coordinates display
+        // Update final coordinates display with altitude
         if (result.photo && result.photo.final_latitude !== -360 && result.photo.final_longitude !== -360) {
-            document.getElementById('final-coords').textContent = 
-                `${result.photo.final_latitude.toFixed(6)}, ${result.photo.final_longitude.toFixed(6)}`;
+            let finalCoordsText = `${result.photo.final_latitude.toFixed(6)}, ${result.photo.final_longitude.toFixed(6)}`;
+            if (result.photo.final_altitude !== null && result.photo.final_altitude !== undefined) {
+                finalCoordsText += ` (${result.photo.final_altitude.toFixed(1)} m)`;
+            }
+            document.getElementById('final-coords').textContent = finalCoordsText;
         } else {
             document.getElementById('final-coords').textContent = '--';
+        }
+        
+        // Update GPX coordinates display with altitude (in case it wasn't showing before)
+        if (result.photo && result.photo.gpx_latitude !== -360 && result.photo.gpx_longitude !== -360) {
+            let gpxCoordsText = `${result.photo.gpx_latitude.toFixed(6)}, ${result.photo.gpx_longitude.toFixed(6)}`;
+            if (result.photo.gpx_altitude !== null && result.photo.gpx_altitude !== undefined) {
+                gpxCoordsText += ` (${result.photo.gpx_altitude.toFixed(1)} m)`;
+            }
+            document.getElementById('gpx-coords').textContent = gpxCoordsText;
         }
         
         // Refresh the EXIF info table to show updated final position

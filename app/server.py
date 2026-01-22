@@ -10,11 +10,25 @@ from typing import List, Optional
 from pydantic import BaseModel
 import pandas as pd
 import json
+import math
 
 from .photo_manager import PhotoManager
 from .gpx_manager import GPXManager
 
 app = FastAPI(title="Geotag Application")
+
+# Helper function to clean NaN values for JSON serialization
+def clean_nan_values(obj):
+    """Recursively replace NaN and inf values with None for JSON serialization"""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    elif isinstance(obj, dict):
+        return {k: clean_nan_values(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_nan_values(item) for item in obj]
+    return obj
 
 # Request models
 class ScanFolderRequest(BaseModel):
@@ -27,6 +41,7 @@ class TagUpdateRequest(BaseModel):
 class LocationUpdateRequest(BaseModel):
     latitude: float
     longitude: float
+    altitude: Optional[float] = None
 
 class SortRequest(BaseModel):
     sort_by: str = "time"
@@ -85,11 +100,23 @@ async def scan_folder(request: ScanFolderRequest):
         # Reset index and add original index as a column
         df_with_index = df.reset_index()
         df_with_index.rename(columns={'index': 'original_index'}, inplace=True)
+        
+        # Convert datetime columns to string for JSON serialization
+        for col in ['exif_capture_time', 'creation_time']:
+            if col in df_with_index.columns:
+                df_with_index[col] = df_with_index[col].apply(
+                    lambda x: x.isoformat() if pd.notna(x) else None
+                )
+        
+        # Convert to dict and clean NaN values
+        df_dict = df_with_index.to_dict(orient="records")
+        df_dict = clean_nan_values(df_dict)
+        
         return {
             "success": True,
             "folder": request.folder_path,
             "count": len(df),
-            "data": df_with_index.to_dict(orient="records")
+            "data": df_dict
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -106,10 +133,22 @@ async def get_photos(filter_type: str = "all"):
         # Reset index and add original index as a column
         df_with_index = df.reset_index()
         df_with_index.rename(columns={'index': 'original_index'}, inplace=True)
+        
+        # Convert datetime columns to string for JSON serialization
+        for col in ['exif_capture_time', 'creation_time']:
+            if col in df_with_index.columns:
+                df_with_index[col] = df_with_index[col].apply(
+                    lambda x: x.isoformat() if pd.notna(x) else None
+                )
+        
+        # Convert to dict and clean NaN values
+        df_dict = df_with_index.to_dict(orient="records")
+        df_dict = clean_nan_values(df_dict)
+        
         return {
             "success": True,
             "count": len(df),
-            "data": df_with_index.to_dict(orient="records")
+            "data": df_dict
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -129,7 +168,7 @@ async def toggle_tag(index: int, request: TagUpdateRequest):
 async def update_manual_location(index: int, request: LocationUpdateRequest):
     """Update manual GPS coordinates for a photo"""
     try:
-        photo_manager.update_manual_location(index, request.latitude, request.longitude)
+        photo_manager.update_manual_location(index, request.latitude, request.longitude, request.altitude)
         photo = photo_manager.get_photo_by_index(index)
         return {"success": True, "photo": photo}
     except Exception as e:

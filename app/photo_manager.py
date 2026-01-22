@@ -53,12 +53,16 @@ class PhotoManager:
             'creation_time': datetime.fromtimestamp(file_path.stat().st_ctime),
             'exif_latitude': -360.0,
             'exif_longitude': -360.0,
+            'exif_altitude': None,
             'gpx_latitude': -360.0,
             'gpx_longitude': -360.0,
+            'gpx_altitude': None,
             'manual_latitude': -360.0,
             'manual_longitude': -360.0,
+            'manual_altitude': None,
             'final_latitude': -360.0,
             'final_longitude': -360.0,
+            'final_altitude': None,
             'new_name': '',
             'tagged': False
         }
@@ -100,6 +104,17 @@ class PhotoManager:
                                 info['exif_latitude'] = lat
                             if lon is not None:
                                 info['exif_longitude'] = lon
+                            
+                            # Extract altitude
+                            if 'GPSAltitude' in gps_data:
+                                try:
+                                    altitude = float(gps_data['GPSAltitude'])
+                                    # GPSAltitudeRef: 0 = above sea level, 1 = below sea level
+                                    if gps_data.get('GPSAltitudeRef', 0) == 1:
+                                        altitude = -altitude
+                                    info['exif_altitude'] = altitude
+                                except:
+                                    pass
         except Exception as e:
             print(f"Error reading EXIF from {file_path}: {e}")
         
@@ -110,6 +125,7 @@ class PhotoManager:
         # Initialize final coordinates with EXIF values
         info['final_latitude'] = info['exif_latitude']
         info['final_longitude'] = info['exif_longitude']
+        info['final_altitude'] = info['exif_altitude']
         
         return info
     
@@ -157,6 +173,11 @@ class PhotoManager:
             if pd.notna(photo[key]):
                 photo[key] = photo[key].isoformat()
         
+        # Convert nan to None for altitude fields (JSON cannot serialize nan)
+        for key in ['exif_altitude', 'gpx_altitude', 'manual_altitude', 'final_altitude']:
+            if pd.isna(photo.get(key)):
+                photo[key] = None
+        
         return photo
     
     def update_tag(self, index: int, tagged: bool):
@@ -166,16 +187,18 @@ class PhotoManager:
         
         self.pd_photo_info.at[index, 'tagged'] = tagged
     
-    def update_manual_location(self, index: int, latitude: float, longitude: float):
+    def update_manual_location(self, index: int, latitude: float, longitude: float, altitude: float = None):
         """Update manual GPS coordinates"""
         if self.pd_photo_info is None or index >= len(self.pd_photo_info):
             raise ValueError("Invalid photo index")
         
         self.pd_photo_info.at[index, 'manual_latitude'] = latitude
         self.pd_photo_info.at[index, 'manual_longitude'] = longitude
+        self.pd_photo_info.at[index, 'manual_altitude'] = altitude
         # Update final coordinates to manual values
         self.pd_photo_info.at[index, 'final_latitude'] = latitude
         self.pd_photo_info.at[index, 'final_longitude'] = longitude
+        self.pd_photo_info.at[index, 'final_altitude'] = altitude
     
     def delete_manual_location(self, index: int):
         """Delete manual GPS coordinates"""
@@ -184,6 +207,7 @@ class PhotoManager:
         
         self.pd_photo_info.at[index, 'manual_latitude'] = -360.0
         self.pd_photo_info.at[index, 'manual_longitude'] = -360.0
+        self.pd_photo_info.at[index, 'manual_altitude'] = None
         
         # Update final coordinates: fallback to GPX if exists, otherwise EXIF
         gpx_lat = self.pd_photo_info.at[index, 'gpx_latitude']
@@ -192,9 +216,11 @@ class PhotoManager:
         if gpx_lat != -360.0 and gpx_lon != -360.0:
             self.pd_photo_info.at[index, 'final_latitude'] = gpx_lat
             self.pd_photo_info.at[index, 'final_longitude'] = gpx_lon
+            self.pd_photo_info.at[index, 'final_altitude'] = self.pd_photo_info.at[index, 'gpx_altitude']
         else:
             self.pd_photo_info.at[index, 'final_latitude'] = self.pd_photo_info.at[index, 'exif_latitude']
             self.pd_photo_info.at[index, 'final_longitude'] = self.pd_photo_info.at[index, 'exif_longitude']
+            self.pd_photo_info.at[index, 'final_altitude'] = self.pd_photo_info.at[index, 'exif_altitude']
     
     def update_gpx_location(self, index: int, latitude: float, longitude: float):
         """Update GPX-matched coordinates"""
@@ -282,6 +308,7 @@ class PhotoManager:
                 if closest_point:
                     self.pd_photo_info.at[index, 'gpx_latitude'] = closest_point['latitude']
                     self.pd_photo_info.at[index, 'gpx_longitude'] = closest_point['longitude']
+                    self.pd_photo_info.at[index, 'gpx_altitude'] = closest_point.get('elevation')
                     
                     # Update final coordinates if no manual position exists
                     manual_lat = self.pd_photo_info.at[index, 'manual_latitude']
@@ -289,10 +316,12 @@ class PhotoManager:
                         # Priority: manual > gpx > exif
                         self.pd_photo_info.at[index, 'final_latitude'] = closest_point['latitude']
                         self.pd_photo_info.at[index, 'final_longitude'] = closest_point['longitude']
+                        self.pd_photo_info.at[index, 'final_altitude'] = closest_point.get('elevation')
                 else:
                     # Clear GPX coordinates if no match found
                     self.pd_photo_info.at[index, 'gpx_latitude'] = -360.0
                     self.pd_photo_info.at[index, 'gpx_longitude'] = -360.0
+                    self.pd_photo_info.at[index, 'gpx_altitude'] = None
                     
                     # Update final coordinates if no manual position
                     manual_lat = self.pd_photo_info.at[index, 'manual_latitude']
@@ -302,6 +331,8 @@ class PhotoManager:
                         if exif_lat != -360.0:
                             self.pd_photo_info.at[index, 'final_latitude'] = exif_lat
                             self.pd_photo_info.at[index, 'final_longitude'] = self.pd_photo_info.at[index, 'exif_longitude']
+                            self.pd_photo_info.at[index, 'final_altitude'] = self.pd_photo_info.at[index, 'exif_altitude']
                         else:
                             self.pd_photo_info.at[index, 'final_latitude'] = -360.0
                             self.pd_photo_info.at[index, 'final_longitude'] = -360.0
+                            self.pd_photo_info.at[index, 'final_altitude'] = None

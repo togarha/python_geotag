@@ -126,14 +126,25 @@
                             </div>
                         </div>
                         <button class="nav-btn next-btn" id="next-photo">›</button>
+                        
+                        <!-- EXIF Information below photo -->
+                        <div class="exif-info-panel">
+                            <h3>Photo Information</h3>
+                            <table class="exif-table">
+                                <thead>
+                                    <tr>
+                                        <th>Property</th>
+                                        <th>Current Value</th>
+                                        <th>New Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="exif-info">
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     <div class="photo-info-section">
-                        <div class="exif-info-panel">
-                            <h3>EXIF Information</h3>
-                            <div id="exif-info" class="exif-info"></div>
-                        </div>
-
                         <div class="map-panel">
                             <h3>Location Map</h3>
                             <div id="photo-map" class="photo-map"></div>

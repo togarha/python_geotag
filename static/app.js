@@ -788,22 +788,52 @@ async function displayLargePhoto(index) {
 function displayEXIFInfo(photo) {
     const exifInfo = document.getElementById('exif-info');
     
-    const info = [
-        { label: 'Filename', value: photo.filename },
-        { label: 'Capture Time', value: photo.exif_capture_time || 'N/A' },
-        { label: 'EXIF Latitude', value: photo.exif_latitude !== -360 ? photo.exif_latitude.toFixed(6) : 'N/A' },
-        { label: 'EXIF Longitude', value: photo.exif_longitude !== -360 ? photo.exif_longitude.toFixed(6) : 'N/A' },
-        { label: 'GPX Latitude', value: photo.gpx_latitude !== -360 ? photo.gpx_latitude.toFixed(6) : 'N/A' },
-        { label: 'GPX Longitude', value: photo.gpx_longitude !== -360 ? photo.gpx_longitude.toFixed(6) : 'N/A' },
-        { label: 'Manual Latitude', value: photo.manual_latitude !== -360 ? photo.manual_latitude.toFixed(6) : 'N/A' },
-        { label: 'Manual Longitude', value: photo.manual_longitude !== -360 ? photo.manual_longitude.toFixed(6) : 'N/A' }
+    // Format coordinates
+    const formatCoords = (lat, lon) => {
+        if (lat === -360 || lon === -360) return 'N/A';
+        return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    };
+    
+    // Format date/time
+    const formatDateTime = (dt) => {
+        if (!dt || dt === 'N/A') return 'N/A';
+        try {
+            const date = new Date(dt);
+            return date.toLocaleString();
+        } catch {
+            return dt;
+        }
+    };
+    
+    const rows = [
+        {
+            label: 'Filename',
+            current: photo.filename,
+            new: photo.new_name || photo.filename
+        },
+        {
+            label: 'File Creation Time',
+            current: formatDateTime(photo.creation_time),
+            new: formatDateTime(photo.creation_time)
+        },
+        {
+            label: 'EXIF Capture Time',
+            current: formatDateTime(photo.exif_capture_time),
+            new: formatDateTime(photo.exif_capture_time)
+        },
+        {
+            label: 'EXIF Position',
+            current: formatCoords(photo.exif_latitude, photo.exif_longitude),
+            new: formatCoords(photo.final_latitude, photo.final_longitude)
+        }
     ];
 
-    exifInfo.innerHTML = info.map(item => `
-        <div class="exif-info-item">
-            <div class="exif-info-label">${item.label}:</div>
-            <div class="exif-info-value">${item.value}</div>
-        </div>
+    exifInfo.innerHTML = rows.map(row => `
+        <tr>
+            <td>${row.label}</td>
+            <td>${row.current}</td>
+            <td>${row.new}</td>
+        </tr>
     `).join('');
 }
 
@@ -1191,6 +1221,11 @@ async function updateManualLocation(latLng, index) {
                 `${result.photo.final_latitude.toFixed(6)}, ${result.photo.final_longitude.toFixed(6)}`;
         }
         
+        // Refresh the EXIF info table to show updated final position
+        if (state.photos[index]) {
+            displayEXIFInfo(state.photos[index]);
+        }
+        
     } catch (error) {
         console.error('Error updating manual location:', error);
     }
@@ -1307,6 +1342,11 @@ async function deleteManualMarker() {
                 `${result.photo.final_latitude.toFixed(6)}, ${result.photo.final_longitude.toFixed(6)}`;
         } else {
             document.getElementById('final-coords').textContent = '--';
+        }
+        
+        // Refresh the EXIF info table to show updated final position
+        if (state.photos[state.selectedPhotoIndex]) {
+            displayEXIFInfo(state.photos[state.selectedPhotoIndex]);
         }
         
     } catch (error) {

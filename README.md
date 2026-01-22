@@ -17,8 +17,16 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 ### 🗺️ GPS & Geotagging
 - **Dual Map Providers**: Switch between OpenStreetMap and Google Maps
 - **EXIF GPS Extraction**: Automatically reads GPS coordinates from photo metadata (supports Fraction objects on Mac)
-- **GPX Track Integration**: Load GPX files and match photos to track points on both map providers
+- **GPX Track Integration**: Load multiple GPX files with smart duplicate detection
+- **Time Offset System**: Compensate timezone differences between GPX (UTC) and camera times
+  - Main offset control applies to all tracks
+  - Individual offset per track for fine-tuning
+  - Format: ±hh:mm:ss (e.g., +02:00:00 for UTC+2)
 - **Automatic Matching**: Photos matched to GPX tracks within ±5 minutes
+- **GPX Track Management**: 
+  - Files displayed as chips/pills with point count
+  - Individual remove buttons for each track
+  - Backend maintains track state across operations
 - **Manual Geotagging**: Click on map to set custom locations with draggable markers
 - **Four Coordinate Sources**:
   - 🔴 EXIF coordinates (from camera GPS)
@@ -139,13 +147,28 @@ http://127.0.0.1:8000
 1. **Select GPX Files**:
    - Click "📂 Select GPX Files"
    - Choose one or more .gpx files
+   - Duplicate files are automatically detected and skipped
 
-2. **View Tracks**:
-   - Tracks are displayed on the map in red
+2. **Configure Time Offset**:
+   - Use main "Time Offset" control to set offset for all tracks (±hh:mm:ss format)
+   - Click ✓ button to apply main offset to all loaded tracks
+   - Or set individual offset per track using the control in each track chip
+
+3. **Manage Loaded Tracks**:
+   - View all loaded tracks in the "Loaded Tracks" panel below the map
+   - Each track displays as a colored chip showing:
+     - Track name
+     - Point count
+     - Individual time offset control
+     - Remove button (×)
+   - Remove individual tracks by clicking their × button
+
+4. **View Tracks on Map**:
+   - All tracks are displayed on the map in red
    - Map automatically centers to fit all tracks
-   - Track information shows below the map
+   - Tracks update when offsets change or tracks are added/removed
 
-3. **Switch Map Provider**:
+5. **Switch Map Provider**:
    - Use the "Map:" dropdown to switch between OpenStreetMap and Google Maps
    - Tracks are redrawn automatically on the new map
 
@@ -215,15 +238,22 @@ Stores all photo information with the following columns:
 4. Final coordinates update automatically when any source changes
 
 ### pd_gpx_info DataFrame
-Stores GPX track point information:
+Stores GPX track point information with time offset support:
 
 | Column | Type | Description |
 |--------|------|-------------|
 | latitude | float | Point latitude |
 | longitude | float | Point longitude |
 | elevation | float | Point elevation |
-| time | datetime | Timestamp of track point |
+| time | datetime | **Adjusted** timestamp (original + offset) |
+| original_time | datetime | Original timestamp from GPX file |
 | track_name | string | Name of parent track |
+
+**Time Offset Handling**:
+- Original GPX timestamps preserved in `original_time` column
+- `time` column contains adjusted timestamps based on track offset
+- Offsets applied to compensate timezone differences (GPX usually UTC)
+- Each track maintains its own `offset_seconds` value
 
 ## API Endpoints
 
@@ -235,8 +265,12 @@ Stores GPX track point information:
 - `POST /api/photos/{index}/tag` - Toggle photo tag status
 - `GET /api/photo-thumbnail/{index}` - Get photo thumbnail (with cache-busting)
 - `GET /api/photo-image/{index}` - Get full-size image (with cache-busting)
-- `POST /api/sort` - Set photo sort order (clears thumbnail cache)
-
+- `POST /api/sort` - Set photo sort order (appends to existing, skips duplicates)
+- `POST /api/gpx/remove` - Remove specific GPX tracks by indices
+- `POST /api/gpx/clear` - Clear all GPX tracks
+- `POST /api/gpx/set-main-offset` - Set time offset for all tracks
+- `POST /api/gpx/set-track-offset` - Set time offset for specific track
+- `GET /api/gpx/tracks` - Get all GPX tracks with offset info
 ### GPS & Geotagging
 - `POST /api/photos/{index}/manual-location` - Set manual GPS (returns complete photo data with final coords)
 - `DELETE /api/photos/{index}/manual-location` - Delete manual GPS (returns updated photo data with fallback coords)
@@ -291,10 +325,17 @@ geotag/
 - Zoom in to see individual markers more clearly
 - Check console (F12) for any JavaScript errors
 
-### GPX not matching photos
-- Verify GPX files have timestamps
-- Check that photo capture times are within ±5 minutes of GPX points
-- Ensure EXIF capture time exists in photos
+### GPX tracks not matching photos
+- Check if GPX files are loaded (visible in "Loaded Tracks" panel)
+- Verify time offset is correct (GPX usually UTC, camera may use local time)
+- Try adjusting the time offset: calculate timezone difference (e.g., +02:00:00 for UTC+2)
+- Apply main offset to all tracks or individual offset for specific tracks
+- Photos match within ±5 minutes of adjusted GPX timestamps
+- Check timezone awareness: system handles both timezone-aware and naive datetimes
+
+### Duplicate GPX tracks
+- The application automatically detects and skips duplicate track names
+- If you need to reload a track, remove it first then upload again
 
 ### Map not displaying
 - **OpenStreetMap**: Should work without any configuration

@@ -1,6 +1,6 @@
 # Geotag - Photo Geotagging Application
 
-A powerful web-based photo geotagging application built with Python and FastAPI. Organize, view, and geotag your photos using EXIF data, GPX tracks, and manual location assignment with dual map provider support.
+A powerful web-based photo geotagging application built with Python and FastAPI. Organize, view, and geotag your photos using EXIF data, GPX tracks, predefined positions, and manual location assignment with dual map provider support and automatic elevation fetching.
 
 ## Features
 
@@ -16,8 +16,8 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 
 ### 🗺️ GPS & Geotagging
 - **Dual Map Providers**: Switch between OpenStreetMap and Google Maps
-- **EXIF GPS Extraction**: Automatically reads GPS coordinates from photo metadata (supports Fraction objects on Mac)
-- **GPX Track Integration**: Load multiple GPX files with smart duplicate detection
+- **EXIF GPS Extraction**: Automatically reads GPS coordinates and altitude from photo metadata (supports Fraction objects on Mac)
+- **GPX Track Integration**: Load multiple GPX files with smart duplicate detection and elevation data
 - **Time Offset System**: Compensate timezone differences between GPX (UTC) and camera times
   - Main offset control applies to all tracks
   - Individual offset per track for fine-tuning
@@ -28,41 +28,68 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
   - Individual remove buttons for each track
   - Backend maintains track state across operations
 - **Manual Geotagging**: Click on map to set custom locations with draggable markers
-- **Four Coordinate Sources**:
-  - 🔴 EXIF coordinates (from camera GPS)
-  - 🔵 GPX matched coordinates (from track logs)
-  - 🟡 Manual coordinates (user-defined, draggable)
-  - 🟢 Final coordinates (cascade: Manual → GPX → EXIF)
+- **Predefined Positions**: Load YAML files with named locations for quick position assignment
+- **Automatic Elevation Fetching**: Get altitude automatically when clicking on map
+  - Multiple free API options: Open-Elevation, OpenTopoData (SRTM 90m), Google Maps
+  - Selectable elevation service via dropdown
+  - SSL certificate handling for problematic APIs
+- **Four Coordinate Sources with Altitude**:
+  - 🔴 EXIF coordinates + altitude (from camera GPS)
+  - 🔵 GPX matched coordinates + elevation (from track logs)
+  - 🟡 Manual coordinates + altitude (user-defined, draggable, auto-fetched elevation)
+  - 🟢 Final coordinates + altitude (cascade: Manual → GPX → EXIF)
 - **Smart Coordinate Cascade**: Final location automatically updates based on priority
 - **Zoom Preservation**: Map maintains zoom level when navigating photos or placing markers
 - **Visual Marker Hierarchy**: Larger, semi-transparent final marker shows around smaller manual marker
+
+### 📍 Position Management
+- **Predefined Positions View**: Dedicated interface for managing named locations
+- **YAML File Support**: Load multiple YAML files with positions
+- **Position Selection Modal**: Beautiful modal dialog for choosing positions
+- **Hover Effects**: Interactive position list with smooth animations
+- **Source Tracking**: See which file each position came from
+- **Altitude Support**: Optional altitude in predefined positions
+- **Quick Assignment**: One-click position assignment to photos
 
 ### 🖼️ Photo Viewer
 - **Large Photo View**: Full-size photo display with navigation
 - **Keyboard Controls**: Arrow keys for navigation, Space to open, Escape to close
 - **Tag Management**: Quick tagging with checkboxes (labels removed for cleaner UI)
-- **EXIF Display**: Comprehensive metadata viewing
+- **EXIF Display**: Comprehensive metadata viewing including altitude
 - **Interactive Map**: View and edit photo locations with dual map provider support
 - **Real-time Updates**: Coordinate display updates immediately when placing or deleting markers
-- **Marker Management**: Delete manual markers with automatic fallback to GPX or EXIF coordinates
+- **Marker Management**: 
+  - 📋 Copy position from previous photo
+  - ✏️ Set manual position via text input (latitude, longitude, optional altitude)
+  - 📍 Select from predefined positions
+  - 🗑️ Delete manual marker
+- **Position Input Methods**:
+  1. Click on map (auto-fetches elevation)
+  2. Enter coordinates manually with format: `latitude, longitude (altitude)`
+  3. Select from loaded predefined positions
+  4. Copy from previous photo
 
 ### 🎨 User Interface
 - **Expandable Menu**: Auto-expands on hover or click
 - **Responsive Design**: Works on desktop and mobile
 - **Modern UI**: Clean, intuitive interface with smooth animations
-- **Three Main Views**:
+- **Four Main Views**:
   1. Photo Thumbnails View (with dual map provider)
-  2. GPX View (with dual map provider)
-  3. Large Photo View (modal with dual map provider)
+  2. GPX View (with dual map provider and time offset controls)
+  3. Positions View (YAML file management)
+  4. Large Photo View (modal with dual map provider)
 - **Clean Checkboxes**: Tag checkboxes without distracting labels
 - **Emoji Markers**: Proper UTF-8 emoji support (🔴 🔵 🟡 🟢) in legend
+- **Styled Modals**: Beautiful position selection with hover effects
 
 ## Technology Stack
 
 - **Backend**: FastAPI (Python web framework)
-- **Data Management**: Pandas DataFrames with 14 columns including final coordinates
+- **Data Management**: Pandas DataFrames with altitude support across all coordinate types
 - **Image Processing**: Pillow (PIL) with RGB conversion and thumbnail caching
-- **GPX Parsing**: gpxpy
+- **GPX Parsing**: gpxpy with elevation data extraction
+- **YAML Parsing**: PyYAML for predefined positions
+- **Elevation APIs**: requests library with SSL handling
 - **Frontend**: Vanilla JavaScript, HTML5, CSS3
 - **Maps**: 
   - OpenStreetMap via Leaflet 1.9.4
@@ -87,24 +114,35 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
    ```powershell
    uv sync
    ```
-
-3. **Configure Map Providers**:
    
-   **For OpenStreetMap (Default)**:
-   - No API key required - works out of the box!
-   
-   **For Google Maps (Optional)**:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select an existing one
-   - Enable the Maps JavaScript API
-   - Create credentials (API Key)
-   - Copy the API key
-   - Open `templates\index.html` and replace `YOUR_GOOGLE_MAPS_API_KEY`:
-     ```html
-     <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_ACTUAL_API_KEY"></script>
-     ```
+   This will install all required packages:
+   - FastAPI and Uvicorn (web server)
+   - Pandas (data management)
+   - Pillow (image processing)
+   - gpxpy (GPX file parsing)
+   - PyYAML (predefined positions)
+   - requests (elevation APIs)
+   - python-multipart (file uploads)
 
-**Note**: The application defaults to OpenStreetMap, which requires no API key. You only need a Google Maps API key if you want to use Google Maps as an alternative provider.
+3. **Configure Services**:
+   
+   **Map Providers**:
+   - **OpenStreetMap (Default)**: No API key required - works out of the box!
+   - **Google Maps (Optional)**:
+     - Go to [Google Cloud Console](https://console.cloud.google.com/)
+     - Create a new project or select an existing one
+     - Enable the Maps JavaScript API
+     - Create credentials (API Key)
+     - Copy the API key
+     - Open `templates\index.html` and replace `YOUR_GOOGLE_MAPS_API_KEY`:
+       ```html
+       <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_ACTUAL_API_KEY"></script>
+       ```
+   
+   **Elevation Services**:
+   - **Open-Elevation**: Free, no API key required (default)
+   - **OpenTopoData**: Free, no API key required, uses SRTM 90m dataset
+   - **Google Maps Elevation API**: Requires API key (same as Maps API)
 
 ## Running the Application
 
@@ -135,6 +173,7 @@ http://127.0.0.1:8000
    - Choose filter (All Photos, Tagged Only, Untagged Only) - maintains correct photo indices
    - Adjust thumbnail size with the slider
    - Choose map provider (OpenStreetMap or Google Maps)
+   - Select elevation service (Open-Elevation, OpenTopoData, or Google)
 
 3. **Interact with Photos**:
    - Single click: Select a photo
@@ -172,6 +211,37 @@ http://127.0.0.1:8000
    - Use the "Map:" dropdown to switch between OpenStreetMap and Google Maps
    - Tracks are redrawn automatically on the new map
 
+### Positions View
+
+1. **Load Predefined Positions**:
+   - Click "📂 Select YAML Files"
+   - Choose one or more .yaml or .yml files
+   - Positions are displayed grouped by source file
+
+2. **YAML File Format**:
+   ```yaml
+   # Each position requires: name, latitude, longitude
+   # Altitude is optional
+   
+   - name: "Eiffel Tower, Paris"
+     latitude: 48.8584
+     longitude: 2.2945
+     altitude: 324
+   
+   - name: "Stonehenge, UK"
+     latitude: 51.1789
+     longitude: -1.8262
+   ```
+
+3. **View Loaded Positions**:
+   - Each file shows its filename and position count
+   - Individual positions display name, coordinates, and altitude
+   - Remove entire files with the "🗑️ Remove" button
+
+4. **Use in Photos**:
+   - Predefined positions become available in the Large Photo View
+   - Click the 📍 button to select from loaded positions
+
 ### Large Photo View
 
 1. **Navigation**:
@@ -189,24 +259,51 @@ http://127.0.0.1:8000
    - Current zoom and center position are maintained
 
 4. **Coordinate Legend**:
-   - 🔴 EXIF: GPS coordinates from camera
-   - 🔵 GPX: Coordinates matched from GPX tracks
-   - 🟡 Manual: User-set coordinates (draggable)
-   - 🟢 Final: Active coordinates (follows cascade logic)
+   - 🔴 EXIF: GPS coordinates and altitude from camera
+   - 🔵 GPX: Coordinates and elevation matched from GPX tracks
+   - 🟡 Manual: User-set coordinates and altitude (draggable)
+   - 🟢 Final: Active coordinates and altitude (follows cascade logic)
 
-5. **Geotagging**:
-   - View existing coordinates from all sources
-   - Click anywhere on map to set manual location
-   - Drag yellow marker to adjust position
-   - Manual marker appears with green final marker ring around it
-   - Click "🗑️ Delete Manual Marker" to remove manual location
+5. **Setting Photo Location**:
+   
+   **Method 1: Click on Map**
+   - Click anywhere on the map
+   - Altitude is automatically fetched from selected elevation service
+   - Yellow manual marker appears with draggable capability
+   
+   **Method 2: Manual Entry (✏️ button)**
+   - Click the ✏️ "Set Manual Position" button
+   - Enter coordinates in format: `latitude, longitude (altitude)`
+   - Altitude is optional: `43.4452, -2.7840` or `43.4452, -2.7840 (125)`
+   - Coordinates are validated (lat: -90 to 90, lng: -180 to 180)
+   
+   **Method 3: Predefined Positions (📍 button)**
+   - Click the 📍 "Set Predefined Position" button
+   - Beautiful modal shows all loaded positions
+   - Click any position to apply it instantly
+   - Includes altitude from YAML file if specified
+   
+   **Method 4: Copy from Previous (📋 button)**
+   - Click the 📋 "Copy position from previous image" button
+   - Copies manual or final position (including altitude) from previous photo
+   - Disabled for the first photo
+
+6. **Deleting Manual Location (🗑️ button)**:
+   - Click "🗑️" to remove manual location
    - Final coordinates automatically fall back to GPX or EXIF when manual is deleted
+   - Altitude also falls back to GPX or EXIF altitude
 
-6. **Automatic GPX Matching**:
+7. **Automatic GPX Matching**:
    - When a photo opens, if no GPX coordinates exist
    - System searches GPX tracks for points within ±5 minutes of capture time
-   - Closest match is automatically assigned
+   - Closest match is automatically assigned with elevation data
    - Final coordinates update accordingly
+
+8. **Automatic Elevation Fetching**:
+   - When clicking on map, elevation is automatically fetched
+   - Select elevation service from dropdown: Open-Elevation, OpenTopoData, or Google
+   - OpenTopoData uses SRTM 90m dataset for global coverage
+   - Elevation displays in meters in coordinate legend
 
 ## Data Structure
 
@@ -221,20 +318,24 @@ Stores all photo information with the following columns:
 | creation_time | datetime | File creation time |
 | exif_latitude | float | GPS latitude from EXIF (-360 if none) |
 | exif_longitude | float | GPS longitude from EXIF (-360 if none) |
+| exif_altitude | float | GPS altitude from EXIF (None if none) |
 | gpx_latitude | float | Matched GPS latitude from GPX (-360 if none) |
 | gpx_longitude | float | Matched GPS longitude from GPX (-360 if none) |
+| gpx_altitude | float | Matched elevation from GPX (None if none) |
 | manual_latitude | float | User-set GPS latitude (-360 if none) |
 | manual_longitude | float | User-set GPS longitude (-360 if none) |
+| manual_altitude | float | User-set altitude (None if none) |
 | final_latitude | float | **Active GPS latitude (cascade logic)** |
 | final_longitude | float | **Active GPS longitude (cascade logic)** |
+| final_altitude | float | **Active altitude (cascade logic)** |
 | new_name | string | Placeholder for renaming feature |
 | tagged | boolean | Tag status for filtering |
 | original_index | int | Original index before filtering (frontend) |
 
 **Final Coordinates Cascade Logic**:
-1. If manual coordinates exist → use manual
-2. Else if GPX coordinates exist → use GPX
-3. Else → use EXIF
+1. If manual coordinates exist → use manual (lat, lng, altitude)
+2. Else if GPX coordinates exist → use GPX (lat, lng, elevation)
+3. Else → use EXIF (lat, lng, altitude)
 4. Final coordinates update automatically when any source changes
 
 ### pd_gpx_info DataFrame
@@ -265,19 +366,27 @@ Stores GPX track point information with time offset support:
 - `POST /api/photos/{index}/tag` - Toggle photo tag status
 - `GET /api/photo-thumbnail/{index}` - Get photo thumbnail (with cache-busting)
 - `GET /api/photo-image/{index}` - Get full-size image (with cache-busting)
-- `POST /api/sort` - Set photo sort order (appends to existing, skips duplicates)
+- `POST /api/sort` - Set photo sort order
+
+### GPS & Geotagging
+- `POST /api/photos/{index}/manual-location` - Set manual GPS coordinates and altitude
+- `DELETE /api/photos/{index}/manual-location` - Delete manual GPS (returns updated photo with fallback)
+
+### GPX Management
+- `POST /api/gpx/upload` - Load GPX files with elevation data
 - `POST /api/gpx/remove` - Remove specific GPX tracks by indices
 - `POST /api/gpx/clear` - Clear all GPX tracks
 - `POST /api/gpx/set-main-offset` - Set time offset for all tracks
 - `POST /api/gpx/set-track-offset` - Set time offset for specific track
 - `GET /api/gpx/tracks` - Get all GPX tracks with offset info
-### GPS & Geotagging
-- `POST /api/photos/{index}/manual-location` - Set manual GPS (returns complete photo data with final coords)
-- `DELETE /api/photos/{index}/manual-location` - Delete manual GPS (returns updated photo data with fallback coords)
 
-### GPX Management
-- `POST /api/gpx/upload` - Load GPX files
-- `GET /api/gpx/tracks` - Get all GPX tracks
+### Predefined Positions
+- `POST /api/positions/upload` - Load YAML files with positions
+- `POST /api/positions/remove` - Remove positions by filename
+- `GET /api/positions` - Get all loaded positions grouped by file
+
+### Elevation Services
+- `POST /api/elevation` - Fetch elevation for coordinates from selected service
 
 ## Project Structure
 
@@ -285,17 +394,24 @@ Stores GPX track point information with time offset support:
 geotag/
 ├── app/
 │   ├── __init__.py
-│   ├── server.py          # FastAPI server and routes
-│   ├── photo_manager.py   # Photo scanning and EXIF extraction
-│   └── gpx_manager.py     # GPX file parsing and matching
+│   ├── server.py            # FastAPI server and routes
+│   ├── photo_manager.py     # Photo scanning and EXIF extraction with altitude
+│   ├── gpx_manager.py       # GPX file parsing and matching with elevation
+│   ├── positions_manager.py # YAML positions parsing and management
+│   └── elevation_service.py # Elevation API integration (3 services)
 ├── static/
-│   ├── styles.css         # Application styling
-│   └── app.js             # Frontend JavaScript
+│   ├── styles.css           # Application styling with modal designs
+│   └── app.js               # Frontend JavaScript with elevation and positions
 ├── templates/
-│   └── index.html         # Main HTML template
-├── pyproject.toml         # Project dependencies
-├── main.py                # Application entry point
-└── README.md              # This file
+│   └── index.html           # Main HTML template with all views
+├── test/
+│   └── resources/
+│       ├── sample_positions.yaml   # Comprehensive test positions
+│       └── minimal_positions.yaml  # Quick test positions
+├── pyproject.toml           # Project dependencies
+├── main.py                  # Application entry point
+├── example_positions.yaml   # Example position file
+└── README.md                # This file
 ```
 
 ## Keyboard Shortcuts
@@ -380,26 +496,68 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [ ] Photo clustering on map
 - [ ] Heatmap view for photo locations
 
-## Recent Updates (v1.1)
+## Recent Updates
 
-### Map Providers
+### Version 1.2 - Altitude & Position Management
+
+**Altitude Support**:
+- ✅ Full altitude tracking across all coordinate types (EXIF, GPX, Manual, Final)
+- ✅ EXIF altitude extraction with sea level reference handling
+- ✅ GPX elevation data from track files
+- ✅ Manual altitude entry and editing
+- ✅ Altitude display in all coordinate legends with " (altitude m)" format
+- ✅ NaN/inf value handling for JSON serialization
+
+**Automatic Elevation Fetching**:
+- ✅ Three free elevation APIs: Open-Elevation, OpenTopoData (SRTM 90m), Google Maps
+- ✅ Selectable elevation service via dropdown
+- ✅ Auto-fetch elevation when clicking on map
+- ✅ SSL certificate handling for problematic APIs
+
+**Predefined Positions System**:
+- ✅ YAML file support for named locations
+- ✅ Dedicated Positions View with file management
+- ✅ Beautiful modal selector with hover effects
+- ✅ Position grouping by source file
+- ✅ Optional altitude in position definitions
+- ✅ One-click position assignment to photos
+- ✅ Sample YAML files in test/resources
+
+**Enhanced Position Entry**:
+- ✅ Manual coordinate entry via text input (📋 button with ✏️ icon)
+- ✅ Format: `latitude, longitude (altitude)` with optional altitude
+- ✅ Coordinate validation (lat: -90 to 90, lng: -180 to 180)
+- ✅ Copy position from previous photo (📋 button)
+- ✅ Select from predefined positions (📍 button)
+- ✅ All methods include altitude support
+
+**UI Improvements**:
+- ✅ Styled position selection modal with smooth animations
+- ✅ Position list with name, coordinates, altitude, and source file
+- ✅ Hover effects on selectable positions
+- ✅ Button tooltips without text labels for cleaner interface
+- ✅ Four-button toolbar: Copy, Manual Entry, Predefined, Delete
+
+### Version 1.1 - Map Providers & Coordinate System
+
+**Map Providers**:
 - ✅ Added OpenStreetMap support via Leaflet 1.9.4
 - ✅ Added dual map provider support to all views
 - ✅ Default to OpenStreetMap (no API key required)
 
-### Coordinate System
+**Coordinate System**:
 - ✅ Implemented final coordinates with cascade logic (Manual → GPX → EXIF)
 - ✅ Added 🟢 Final marker display (green, larger, semi-transparent)
 - ✅ Real-time coordinate updates in legend
 
-### UI/UX Improvements
+**UI/UX Improvements**:
 - ✅ Fixed yellow emoji (🟡) display in legend
 - ✅ Removed "Tag" labels from checkboxes for cleaner UI
 - ✅ Fixed sorting synchronization between grid and list
 - ✅ Implemented cache-busting for thumbnails and images
 - ✅ Fixed filtered view index tracking with original_index
 
-### Map Behavior
+**Map Behavior**:
 - ✅ Preserve zoom level when navigating photos
 - ✅ Preserve zoom when placing/deleting markers
 - ✅ Pan to center instead of fitBounds for consistent zoom
@@ -408,12 +566,15 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 ### Cross-Platform
 - ✅ Fixed Mac EXIF GPS coordinate reading (Fraction objects)
 - ✅ Proper handling of different EXIF data formats
+- ✅ Altitude extraction with GPSAltitudeRef support
 
 ### Bug Fixes
 - ✅ Fixed marker overlap visibility (final marker ring around manual marker)
 - ✅ Fixed tag status synchronization across views
 - ✅ Fixed browser caching issues with timestamp parameters
 - ✅ Fixed GPX view map provider support
+- ✅ Fixed NaN/inf JSON serialization errors
+- ✅ SSL certificate verification issues with elevation APIs
 
 ## License
 
@@ -429,4 +590,6 @@ For issues, questions, or contributions, please refer to the project repository.
 
 ---
 
-**Note**: The application uses OpenStreetMap by default, which requires no API key. Google Maps is available as an optional alternative - remember to keep your API key secure and never commit it to public repositories if you choose to use it!
+**Note**: The application uses OpenStreetMap by default with free elevation services (Open-Elevation or OpenTopoData), requiring no API keys. Google Maps and Google Elevation API are available as optional alternatives - remember to keep your API key secure and never commit it to public repositories if you choose to use them!
+
+**Example Files**: Check `test/resources/` for sample YAML position files to get started with predefined positions.

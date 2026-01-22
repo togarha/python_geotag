@@ -3,7 +3,7 @@ FastAPI server with all endpoints for the geotagging application
 """
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Optional
@@ -63,6 +63,12 @@ async def read_root():
     return HTMLResponse(content="<h1>Welcome to Geotag App</h1><p>Templates not found.</p>")
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    """Return empty response for favicon to prevent 404 errors"""
+    return Response(status_code=204)
+
+
 @app.post("/api/scan-folder")
 async def scan_folder(request: ScanFolderRequest):
     """
@@ -70,6 +76,12 @@ async def scan_folder(request: ScanFolderRequest):
     """
     try:
         df = photo_manager.scan_folder(request.folder_path, request.recursive)
+        
+        # Match with GPX if available
+        if gpx_manager.has_data():
+            photo_manager.match_all_photos_with_gpx(gpx_manager)
+            df = photo_manager.pd_photo_info
+        
         # Reset index and add original index as a column
         df_with_index = df.reset_index()
         df_with_index.rename(columns={'index': 'original_index'}, inplace=True)
@@ -141,24 +153,8 @@ async def get_photo_details(index: int):
     try:
         photo = photo_manager.get_photo_by_index(index)
         
-        # Try to match with GPX data if coordinates are not set
-        if photo['gpx_latitude'] == -360 and gpx_manager.has_data() and photo['exif_capture_time'] is not None:
-            try:
-                gpx_coords = gpx_manager.find_closest_point(
-                    photo['exif_capture_time'],
-                    time_window_minutes=5
-                )
-                if gpx_coords:
-                    photo_manager.update_gpx_location(
-                        index, 
-                        gpx_coords['latitude'], 
-                        gpx_coords['longitude']
-                    )
-                    photo['gpx_latitude'] = gpx_coords['latitude']
-                    photo['gpx_longitude'] = gpx_coords['longitude']
-            except Exception as gpx_error:
-                # Log GPX matching error but don't fail the request
-                print(f"Warning: GPX matching failed for photo {index}: {gpx_error}")
+        # GPX matching is now done upfront when photos/GPX are loaded
+        # or when GPX data changes, so just return the photo data
         
         return {"success": True, "photo": photo}
     except Exception as e:
@@ -196,6 +192,10 @@ async def upload_gpx(files: List[UploadFile] = File(...)):
             result = gpx_manager.load_gpx(content.decode('utf-8'), file.filename)
             results.append(result)
         
+        # Match all photos with updated GPX data
+        if photo_manager.pd_photo_info is not None:
+            photo_manager.match_all_photos_with_gpx(gpx_manager)
+        
         return {
             "success": True,
             "files_loaded": len(results),
@@ -212,6 +212,10 @@ async def remove_gpx_tracks(request: dict):
         indices = request.get('indices', [])
         
         gpx_manager.remove_tracks_by_indices(indices)
+        
+        # Re-match all photos with remaining GPX data
+        if photo_manager.pd_photo_info is not None:
+            photo_manager.match_all_photos_with_gpx(gpx_manager)
         
         return {
             "success": True,
@@ -243,6 +247,10 @@ async def set_main_gpx_offset(request: dict):
         offset_seconds = gpx_manager.parse_offset_string(offset_str)
         gpx_manager.set_main_offset(offset_seconds)
         
+        # Re-match all photos with updated GPX times
+        if photo_manager.pd_photo_info is not None:
+            photo_manager.match_all_photos_with_gpx(gpx_manager)
+        
         return {
             "success": True,
             "tracks": gpx_manager.get_all_tracks()
@@ -263,6 +271,10 @@ async def set_track_gpx_offset(request: dict):
         
         offset_seconds = gpx_manager.parse_offset_string(offset_str)
         gpx_manager.set_track_offset(track_index, offset_seconds)
+        
+        # Re-match all photos with updated GPX times
+        if photo_manager.pd_photo_info is not None:
+            photo_manager.match_all_photos_with_gpx(gpx_manager)
         
         return {
             "success": True,

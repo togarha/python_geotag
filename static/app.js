@@ -414,6 +414,11 @@ async function handleGPXUpload(e) {
             state.gpxTracks = result.tracks;
             displayGPXTracks();
             displayGPXFiles();
+            
+            // Reload photos to get updated GPX coordinates
+            if (state.photos.length > 0) {
+                await loadPhotos();
+            }
         }
     } catch (error) {
         console.error('Error loading GPX:', error);
@@ -596,6 +601,11 @@ async function applyMainOffset() {
             state.gpxTracks = result.tracks;
             // Redraw the display to show updated offsets
             displayGPXFiles();
+            
+            // Reload photos to get updated GPX coordinates with new offset
+            if (state.photos.length > 0) {
+                await loadPhotos();
+            }
         }
     } catch (error) {
         console.error('Error applying main offset:', error);
@@ -626,6 +636,11 @@ async function applyTrackOffset(trackIndices, offset) {
             state.gpxTracks = result.tracks;
             // Redraw the display to show updated offsets
             displayGPXFiles();
+            
+            // Reload photos to get updated GPX coordinates with new offset
+            if (state.photos.length > 0) {
+                await loadPhotos();
+            }
         }
     } catch (error) {
         console.error('Error applying track offset:', error);
@@ -669,6 +684,11 @@ async function removeGPXFile(trackIndices) {
 
             // Update file chips display
             displayGPXFiles();
+            
+            // Reload photos to get updated coordinates after GPX removal
+            if (state.photos.length > 0) {
+                await loadPhotos();
+            }
         }
     } catch (error) {
         console.error('Error removing GPX tracks:', error);
@@ -685,6 +705,7 @@ function initializeLargePhotoView() {
     const nextBtn = document.getElementById('next-photo');
     const tagCheckbox = document.getElementById('large-photo-tag');
     const deleteMarkerBtn = document.getElementById('delete-manual-marker');
+    const copyFromPreviousBtn = document.getElementById('copy-from-previous');
 
     closeBtn.addEventListener('click', closeLargePhotoView);
     prevBtn.addEventListener('click', () => navigatePhoto(-1));
@@ -697,6 +718,7 @@ function initializeLargePhotoView() {
     });
 
     deleteMarkerBtn.addEventListener('click', deleteManualMarker);
+    copyFromPreviousBtn.addEventListener('click', copyFromPreviousPhoto);
 
     // Close on background click
     modal.addEventListener('click', (e) => {
@@ -745,6 +767,12 @@ async function displayLargePhoto(index) {
         // Update navigation buttons
         document.getElementById('prev-photo').disabled = (index === 0);
         document.getElementById('next-photo').disabled = (index === state.photos.length - 1);
+        
+        // Update copy from previous button (disabled if first photo)
+        document.getElementById('copy-from-previous').disabled = (index === 0);
+        
+        // Update copy from previous button (disabled if first photo)
+        document.getElementById('copy-from-previous').disabled = (index === 0);
         
         // Display EXIF info
         displayEXIFInfo(photoData);
@@ -1074,10 +1102,11 @@ async function placeManualMarker(latLng, index) {
     const lat = latLng.lat !== undefined ? (typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat) : latLng.latitude;
     const lng = latLng.lng !== undefined ? (typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng) : latLng.longitude;
     
+    // Update manual location and wait for backend response
     await updateManualLocation(latLng, index);
     
     // After updating, refresh the map display with the updated photo data from state
-    // This ensures all markers including the final marker are displayed correctly
+    // The updateManualLocation has already updated state.photos[index] with backend response
     if (state.photos[index]) {
         displayPhotoMap(state.photos[index], index);
     }
@@ -1164,6 +1193,75 @@ async function updateManualLocation(latLng, index) {
         
     } catch (error) {
         console.error('Error updating manual location:', error);
+    }
+}
+
+async function copyFromPreviousPhoto() {
+    if (state.selectedPhotoIndex === null || state.selectedPhotoIndex === 0) return;
+    
+    const previousIndex = state.selectedPhotoIndex - 1;
+    const previousPhoto = state.photos[previousIndex];
+    
+    if (!previousPhoto) return;
+    
+    // Check if previous photo has manual or final coordinates to copy
+    const hasManual = previousPhoto.manual_latitude !== -360 && previousPhoto.manual_longitude !== -360;
+    const hasFinal = previousPhoto.final_latitude !== -360 && previousPhoto.final_longitude !== -360;
+    
+    if (!hasManual && !hasFinal) {
+        alert('Previous photo has no position to copy.');
+        return;
+    }
+    
+    try {
+        // Copy manual coordinates if they exist, otherwise copy final coordinates
+        const latToCopy = hasManual ? previousPhoto.manual_latitude : previousPhoto.final_latitude;
+        const lngToCopy = hasManual ? previousPhoto.manual_longitude : previousPhoto.final_longitude;
+        
+        // Set manual marker on current photo using the copied coordinates
+        if (state.mapProvider === 'google') {
+            const latLng = new google.maps.LatLng(latToCopy, lngToCopy);
+            await placeManualMarker(latLng, state.selectedPhotoIndex);
+        } else {
+            const latLng = { lat: latToCopy, lng: lngToCopy };
+            await placeManualMarker(latLng, state.selectedPhotoIndex);
+        }
+    } catch (error) {
+        console.error('Error copying from previous photo:', error);
+    }
+}
+
+async function copyFromPreviousPhoto() {
+    if (state.selectedPhotoIndex === null || state.selectedPhotoIndex === 0) return;
+    
+    const previousIndex = state.selectedPhotoIndex - 1;
+    const previousPhoto = state.photos[previousIndex];
+    
+    if (!previousPhoto) return;
+    
+    // Check if previous photo has final coordinates to copy
+    const hasFinal = previousPhoto.final_latitude !== -360 && previousPhoto.final_longitude !== -360;
+    
+    if (!hasFinal) {
+        alert('Previous photo has no position to copy.');
+        return;
+    }
+    
+    try {
+        // Copy final coordinates from previous photo
+        const latToCopy = previousPhoto.final_latitude;
+        const lngToCopy = previousPhoto.final_longitude;
+        
+        // Set manual marker on current photo using the copied coordinates
+        if (state.mapProvider === 'google') {
+            const latLng = new google.maps.LatLng(latToCopy, lngToCopy);
+            await placeManualMarker(latLng, state.selectedPhotoIndex);
+        } else {
+            const latLng = { lat: latToCopy, lng: lngToCopy };
+            await placeManualMarker(latLng, state.selectedPhotoIndex);
+        }
+    } catch (error) {
+        console.error('Error copying from previous photo:', error);
     }
 }
 

@@ -235,6 +235,10 @@ class GPXManager:
         mask = (self.pd_gpx_info['time'] >= time_min) & (self.pd_gpx_info['time'] <= time_max)
         nearby_points = self.pd_gpx_info[mask]
         
+        # Check if any points were found
+        if nearby_points.empty:
+            return None
+        
         # Find closest point by time difference
         nearby_points = nearby_points.copy()
         nearby_points['time_diff'] = abs((nearby_points['time'] - target_time).dt.total_seconds())

@@ -263,3 +263,45 @@ class PhotoManager:
         except Exception as e:
             print(f"Error creating thumbnail for {img_path}: {e}")
             raise ValueError(f"Failed to create thumbnail: {str(e)}")
+    
+    def match_all_photos_with_gpx(self, gpx_manager):
+        """Match all photos with GPX data and update DataFrame"""
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return
+        
+        if not gpx_manager.has_data():
+            return
+        
+        for index in range(len(self.pd_photo_info)):
+            capture_time = self.pd_photo_info.at[index, 'exif_capture_time']
+            
+            # Only try to match if photo has capture time and doesn't have manual position
+            if capture_time is not None and pd.notna(capture_time):
+                closest_point = gpx_manager.find_closest_point(capture_time)
+                
+                if closest_point:
+                    self.pd_photo_info.at[index, 'gpx_latitude'] = closest_point['latitude']
+                    self.pd_photo_info.at[index, 'gpx_longitude'] = closest_point['longitude']
+                    
+                    # Update final coordinates if no manual position exists
+                    manual_lat = self.pd_photo_info.at[index, 'manual_latitude']
+                    if manual_lat == -360.0:
+                        # Priority: manual > gpx > exif
+                        self.pd_photo_info.at[index, 'final_latitude'] = closest_point['latitude']
+                        self.pd_photo_info.at[index, 'final_longitude'] = closest_point['longitude']
+                else:
+                    # Clear GPX coordinates if no match found
+                    self.pd_photo_info.at[index, 'gpx_latitude'] = -360.0
+                    self.pd_photo_info.at[index, 'gpx_longitude'] = -360.0
+                    
+                    # Update final coordinates if no manual position
+                    manual_lat = self.pd_photo_info.at[index, 'manual_latitude']
+                    if manual_lat == -360.0:
+                        # Fall back to EXIF
+                        exif_lat = self.pd_photo_info.at[index, 'exif_latitude']
+                        if exif_lat != -360.0:
+                            self.pd_photo_info.at[index, 'final_latitude'] = exif_lat
+                            self.pd_photo_info.at[index, 'final_longitude'] = self.pd_photo_info.at[index, 'exif_longitude']
+                        else:
+                            self.pd_photo_info.at[index, 'final_latitude'] = -360.0
+                            self.pd_photo_info.at[index, 'final_longitude'] = -360.0

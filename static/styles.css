@@ -680,6 +680,8 @@ body {
 
 .map-controls {
     margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
 }
 
 .marker-info {

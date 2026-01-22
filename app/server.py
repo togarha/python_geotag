@@ -14,6 +14,7 @@ import math
 
 from .photo_manager import PhotoManager
 from .gpx_manager import GPXManager
+from .elevation_service import ElevationService
 
 app = FastAPI(title="Geotag Application")
 
@@ -46,6 +47,11 @@ class LocationUpdateRequest(BaseModel):
 class SortRequest(BaseModel):
     sort_by: str = "time"
 
+class ElevationRequest(BaseModel):
+    latitude: float
+    longitude: float
+    service: str = "open-elevation"
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -58,6 +64,7 @@ app.add_middleware(
 # Global data storage (in production, use proper state management)
 photo_manager = PhotoManager()
 gpx_manager = GPXManager()
+elevation_service = ElevationService()
 
 # Serve static files
 static_path = Path(__file__).parent.parent / "static"
@@ -82,6 +89,25 @@ async def read_root():
 async def favicon():
     """Return empty response for favicon to prevent 404 errors"""
     return Response(status_code=204)
+
+
+@app.post("/api/elevation")
+async def get_elevation(request: ElevationRequest):
+    """Fetch elevation for given coordinates using specified service"""
+    try:
+        elevation = elevation_service.get_elevation(
+            request.latitude,
+            request.longitude,
+            request.service
+        )
+        
+        return {
+            "success": True,
+            "elevation": elevation,
+            "service": request.service
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/scan-folder")

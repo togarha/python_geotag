@@ -1155,10 +1155,42 @@ function displayPhotoMapOSM(photo, index, mapElement) {
     }
 }
 
+async function fetchElevation(lat, lng) {
+    try {
+        const elevationService = document.getElementById('elevation-service').value;
+        
+        const response = await fetch('/api/elevation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                latitude: lat,
+                longitude: lng,
+                service: elevationService
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.elevation !== null) {
+            return result.elevation;
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error fetching elevation:', error);
+        return null;
+    }
+}
+
 async function placeManualMarker(latLng, index, altitude = null) {
     // Handle both Google Maps and Leaflet LatLng objects
     const lat = latLng.lat !== undefined ? (typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat) : latLng.latitude;
     const lng = latLng.lng !== undefined ? (typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng) : latLng.longitude;
+    
+    // Fetch elevation if not provided
+    if (altitude === null) {
+        altitude = await fetchElevation(lat, lng);
+    }
     
     // Update manual location and wait for backend response
     await updateManualLocation(latLng, index, altitude);

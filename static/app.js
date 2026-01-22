@@ -706,6 +706,7 @@ function initializeLargePhotoView() {
     const tagCheckbox = document.getElementById('large-photo-tag');
     const deleteMarkerBtn = document.getElementById('delete-manual-marker');
     const copyFromPreviousBtn = document.getElementById('copy-from-previous');
+    const setManualPositionBtn = document.getElementById('set-manual-position');
 
     closeBtn.addEventListener('click', closeLargePhotoView);
     prevBtn.addEventListener('click', () => navigatePhoto(-1));
@@ -719,6 +720,7 @@ function initializeLargePhotoView() {
 
     deleteMarkerBtn.addEventListener('click', deleteManualMarker);
     copyFromPreviousBtn.addEventListener('click', copyFromPreviousPhoto);
+    setManualPositionBtn.addEventListener('click', setManualPositionManually);
 
     // Close on background click
     modal.addEventListener('click', (e) => {
@@ -771,8 +773,8 @@ async function displayLargePhoto(index) {
         // Update copy from previous button (disabled if first photo)
         document.getElementById('copy-from-previous').disabled = (index === 0);
         
-        // Update copy from previous button (disabled if first photo)
-        document.getElementById('copy-from-previous').disabled = (index === 0);
+        // Set manual position button is always enabled when a photo is displayed
+        document.getElementById('set-manual-position').disabled = false;
         
         // Display EXIF info
         displayEXIFInfo(photoData);
@@ -1320,6 +1322,52 @@ async function copyFromPreviousPhoto() {
         }
     } catch (error) {
         console.error('Error copying from previous photo:', error);
+    }
+}
+
+async function setManualPositionManually() {
+    if (state.selectedPhotoIndex === null) return;
+    
+    const input = prompt('Enter position as: latitude, longitude (altitude)\nAltitude is optional.\n\nExample: 43.4452, -2.7840 (125)');
+    
+    if (!input) return; // User cancelled
+    
+    // Parse input - handle both formats: "lat, lng" and "lat, lng (alt)"
+    const regex = /^\s*([-+]?\d+\.?\d*)\s*,\s*([-+]?\d+\.?\d*)\s*(?:\(\s*([-+]?\d+\.?\d*)\s*\))?\s*$/;
+    const match = input.match(regex);
+    
+    if (!match) {
+        alert('Invalid format. Please use: latitude, longitude (altitude)\nExample: 43.4452, -2.7840 (125)');
+        return;
+    }
+    
+    const lat = parseFloat(match[1]);
+    const lng = parseFloat(match[2]);
+    const alt = match[3] ? parseFloat(match[3]) : null;
+    
+    // Validate coordinates
+    if (lat < -90 || lat > 90) {
+        alert('Latitude must be between -90 and 90');
+        return;
+    }
+    
+    if (lng < -180 || lng > 180) {
+        alert('Longitude must be between -180 and 180');
+        return;
+    }
+    
+    try {
+        // Place manual marker with parsed coordinates
+        if (state.mapProvider === 'google') {
+            const latLng = new google.maps.LatLng(lat, lng);
+            await placeManualMarker(latLng, state.selectedPhotoIndex, alt);
+        } else {
+            const latLng = { lat: lat, lng: lng };
+            await placeManualMarker(latLng, state.selectedPhotoIndex, alt);
+        }
+    } catch (error) {
+        console.error('Error setting manual position:', error);
+        alert('Error setting position: ' + error.message);
     }
 }
 

@@ -56,6 +56,13 @@ class ElevationRequest(BaseModel):
 class FilenameFormatRequest(BaseModel):
     format: str
 
+class PhotoTitleRequest(BaseModel):
+    title: str
+
+class PhotoMetadataUpdate(BaseModel):
+    new_time: Optional[str] = None
+    new_title: Optional[str] = None
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -468,5 +475,61 @@ async def get_filename_format():
     try:
         format_str = photo_manager.get_filename_format()
         return {"success": True, "format": format_str}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/apply-photo-title")
+async def apply_photo_title(request: PhotoTitleRequest):
+    """
+    Apply a title to all photos (updates new_title column)
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.apply_photo_title(request.title)
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/clear-photo-titles")
+async def clear_photo_titles():
+    """
+    Clear all new_title values
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.clear_photo_titles()
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/apply-photo-title-tagged")
+async def apply_photo_title_tagged(request: PhotoTitleRequest):
+    """
+    Apply a title to tagged photos only (updates new_title column)
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.apply_photo_title_tagged(request.title)
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/photos/{index}/metadata")
+async def update_photo_metadata(index: int, request: PhotoMetadataUpdate):
+    """
+    Update new_time and/or new_title for a specific photo
+    """
+    try:
+        if photo_manager.pd_photo_info is None or index >= len(photo_manager.pd_photo_info):
+            return {"success": False, "detail": "Invalid photo index"}
+        
+        photo_manager.update_photo_metadata(index, request.new_time, request.new_title)
+        return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

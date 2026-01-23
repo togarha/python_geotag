@@ -53,6 +53,9 @@ class PhotoManager:
             'full_path': str(file_path),
             'exif_capture_time': None,
             'creation_time': datetime.fromtimestamp(file_path.stat().st_ctime),
+            'new_time': None,
+            'exif_image_title': None,
+            'new_title': None,
             'exif_latitude': -360.0,
             'exif_longitude': -360.0,
             'exif_altitude': None,
@@ -73,7 +76,8 @@ class PhotoManager:
             with Image.open(file_path) as img:
                 exif_data = img._getexif()
                 if exif_data:
-                    # Extract capture time
+                    # Extract capture time and image title
+                    # First pass: look for ImageDescription (highest priority)
                     for tag_id, value in exif_data.items():
                         tag = TAGS.get(tag_id, tag_id)
                         
@@ -85,7 +89,32 @@ class PhotoManager:
                             except:
                                 pass
                         
-                        # Extract GPS data
+                        # Extract image title - prioritize ImageDescription for cross-platform compatibility
+                        if tag == 'ImageDescription':
+                            if value and str(value).strip():
+                                info['exif_image_title'] = str(value).strip()
+                    
+                    # If no ImageDescription found, try Windows-specific tags as fallback
+                    if not info['exif_image_title']:
+                        for tag_id, value in exif_data.items():
+                            tag = TAGS.get(tag_id, tag_id)
+                            
+                            if tag in ['XPTitle', 'XPComment']:
+                                if value:
+                                    # XPTitle/XPComment are stored as bytes, need to decode
+                                    if isinstance(value, bytes):
+                                        try:
+                                            decoded = value.decode('utf-16le').rstrip('\x00').strip()
+                                            if decoded:
+                                                info['exif_image_title'] = decoded
+                                                break
+                                        except:
+                                            pass
+                    
+                    # Extract GPS data
+                    for tag_id, value in exif_data.items():
+                        tag = TAGS.get(tag_id, tag_id)
+                        
                         if tag == 'GPSInfo':
                             gps_data = {}
                             for gps_tag_id in value:
@@ -123,6 +152,10 @@ class PhotoManager:
         # Use creation time if no EXIF capture time
         if info['exif_capture_time'] is None:
             info['exif_capture_time'] = info['creation_time']
+        
+        # Keep new_time and new_title as None (will be set when user modifies them)
+        # info['new_time'] remains None
+        # info['new_title'] remains None
         
         # Initialize final coordinates with EXIF values
         info['final_latitude'] = info['exif_latitude']
@@ -174,7 +207,7 @@ class PhotoManager:
         
         photo = self.pd_photo_info.iloc[index].to_dict()
         # Convert datetime to string for JSON serialization
-        for key in ['exif_capture_time', 'creation_time']:
+        for key in ['exif_capture_time', 'creation_time', 'new_time']:
             if pd.notna(photo[key]):
                 photo[key] = photo[key].isoformat()
         
@@ -383,6 +416,78 @@ class PhotoManager:
         self._deduplicate_filenames()
         
         return len(self.pd_photo_info)
+    
+    def apply_photo_title(self, title: str) -> int:
+        """
+        Apply a title to all photos (updates new_title column)
+        Returns count of photos updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        for index in range(len(self.pd_photo_info)):
+            self.pd_photo_info.at[index, 'new_title'] = title
+        
+        return len(self.pd_photo_info)
+    
+    def apply_photo_title_tagged(self, title: str) -> int:
+        """
+        Apply a title to tagged photos only (updates new_title column)
+        Returns count of photos updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        count = 0
+        for index in range(len(self.pd_photo_info)):
+            if self.pd_photo_info.at[index, 'tagged']:
+                self.pd_photo_info.at[index, 'new_title'] = title
+                count += 1
+        
+        return count
+    
+    def clear_photo_titles(self) -> int:
+        """
+        Clear all new_title values (set to None)
+        Returns count of photos updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        for index in range(len(self.pd_photo_info)):
+            self.pd_photo_info.at[index, 'new_title'] = None
+        
+        return len(self.pd_photo_info)
+    
+    def update_photo_metadata(self, index: int, new_time: str = None, new_title: str = None) -> bool:
+        """
+        Update new_time and/or new_title for a specific photo
+        Args:
+            index: Photo index
+            new_time: ISO format datetime string or None to keep unchanged
+            new_title: Title string or None to keep unchanged
+        Returns:
+            True if successful
+        """
+        if self.pd_photo_info is None or index >= len(self.pd_photo_info):
+            raise ValueError("Invalid photo index")
+        
+        if new_time is not None:
+            if new_time == "":  # Empty string means clear/set to None
+                self.pd_photo_info.at[index, 'new_time'] = None
+            else:
+                # Parse ISO format datetime
+                try:
+                    dt = datetime.fromisoformat(new_time.replace('Z', '+00:00'))
+                    self.pd_photo_info.at[index, 'new_time'] = dt
+                except:
+                    raise ValueError("Invalid datetime format")
+        
+        if new_title is not None:
+            # Keep empty string as empty string (don't convert to None)
+            self.pd_photo_info.at[index, 'new_title'] = new_title
+        
+        return True
     
     def get_filename_format(self) -> str:
         """Get the current filename format"""

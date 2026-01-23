@@ -166,6 +166,18 @@
                     </details>
                     <div id="preview-results" class="preview-results"></div>
                 </div>
+                
+                <div class="settings-section">
+                    <h3>Photo Title</h3>
+                    <div class="setting-item">
+                        <label for="photo-title">Set Title for All Photos:</label>
+                        <input type="text" id="photo-title" placeholder="Enter title for all photos" class="format-input">
+                        <button id="apply-title" class="btn btn-primary">Apply to All</button>
+                        <button id="apply-title-tagged" class="btn btn-success">Apply to Tagged</button>
+                        <button id="clear-title" class="btn btn-secondary">Clear All Titles</button>
+                    </div>
+                    <p class="help-text">This will set the new_title field for all photos in the current folder.</p>
+                </div>
             </div>
         </div>
 
@@ -187,7 +199,10 @@
                         
                         <!-- EXIF Information below photo -->
                         <div class="exif-info-panel">
-                            <h3>Photo Information</h3>
+                            <div class="exif-header">
+                                <h3>Photo Information</h3>
+                                <button id="edit-photo-metadata" class="btn btn-primary btn-sm" disabled>✏️ Edit Time & Title</button>
+                            </div>
                             <table class="exif-table">
                                 <thead>
                                     <tr>
@@ -243,6 +258,37 @@
             </div>
             <div class="positions-modal-body">
                 <div id="positions-list" class="positions-selection-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Photo Metadata Modal -->
+    <div id="edit-metadata-modal" class="modal">
+        <div class="modal-content edit-metadata-modal-content">
+            <div class="modal-header">
+                <h3>Edit Photo Metadata</h3>
+                <button class="close-modal" id="close-edit-metadata-modal">&times;</button>
+            </div>
+            <div class="edit-metadata-body">
+                <div class="form-group">
+                    <label for="edit-photo-title-input">Photo Title:</label>
+                    <div class="form-group-inline">
+                        <input type="text" id="edit-photo-title-input" class="form-control" placeholder="Enter photo title">
+                        <button id="apply-title-btn" class="btn btn-primary btn-inline">Apply</button>
+                    </div>
+                    <small class="form-help">Leave empty to clear title</small>
+                </div>
+                <div class="form-group">
+                    <label for="edit-photo-time-input">Photo Date/Time:</label>
+                    <div class="form-group-inline">
+                        <input type="datetime-local" id="edit-photo-time-input" class="form-control" step="1">
+                        <button id="apply-time-btn" class="btn btn-primary btn-inline">Apply</button>
+                    </div>
+                    <small class="form-help">Clear to remove custom time</small>
+                </div>
+                <div class="modal-actions">
+                    <button id="close-metadata-modal-btn" class="btn btn-secondary">Close</button>
+                </div>
             </div>
         </div>
     </div>

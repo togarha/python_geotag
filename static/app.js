@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializePositionsView();
     initializeSettingsView();
     initializeLargePhotoView();
+    initializeEditMetadataModal();
     initializeKeyboardShortcuts();
 });
 
@@ -866,9 +867,15 @@ async function removePositionFile(filename) {
 function initializeSettingsView() {
     const applyFormatBtn = document.getElementById('apply-format');
     const previewNamesBtn = document.getElementById('preview-names');
+    const applyTitleBtn = document.getElementById('apply-title');
+    const applyTitleTaggedBtn = document.getElementById('apply-title-tagged');
+    const clearTitleBtn = document.getElementById('clear-title');
     
     applyFormatBtn.addEventListener('click', applyFilenameFormat);
     previewNamesBtn.addEventListener('click', previewFilenameFormat);
+    applyTitleBtn.addEventListener('click', applyPhotoTitle);
+    applyTitleTaggedBtn.addEventListener('click', applyPhotoTitleTagged);
+    clearTitleBtn.addEventListener('click', clearPhotoTitles);
     
     // Load current format from backend
     loadFilenameFormat();
@@ -952,6 +959,107 @@ async function applyFilenameFormat() {
     }
 }
 
+async function applyPhotoTitle() {
+    const title = document.getElementById('photo-title').value.trim();
+    
+    if (!title) {
+        alert('Please enter a title.');
+        return;
+    }
+    
+    if (!confirm(`This will set the new_title to "${title}" for all photos. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-photo-title', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully set title for ${result.count} photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying title: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying title:', error);
+        alert('Error applying title: ' + error.message);
+    }
+}
+
+async function applyPhotoTitleTagged() {
+    const title = document.getElementById('photo-title').value.trim();
+    
+    if (!title) {
+        alert('Please enter a title.');
+        return;
+    }
+    
+    if (!confirm(`This will set the new_title to "${title}" for tagged photos only. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-photo-title-tagged', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully set title for ${result.count} tagged photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying title: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying title to tagged photos:', error);
+        alert('Error applying title: ' + error.message);
+    }
+}
+
+async function clearPhotoTitles() {
+    if (!confirm('This will clear the new_title for all photos. Continue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/clear-photo-titles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully cleared titles for ${result.count} photos.`);
+            document.getElementById('photo-title').value = '';
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error clearing titles: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error clearing titles:', error);
+        alert('Error clearing titles: ' + error.message);
+    }
+}
+
 function displayPreviewResults(previews) {
     const previewResults = document.getElementById('preview-results');
     const previewList = document.createElement('div');
@@ -998,6 +1106,7 @@ function initializeLargePhotoView() {
     const copyFromPreviousBtn = document.getElementById('copy-from-previous');
     const setManualPositionBtn = document.getElementById('set-manual-position');
     const setPredefinedPositionBtn = document.getElementById('set-predefined-position');
+    const editMetadataBtn = document.getElementById('edit-photo-metadata');
 
     closeBtn.addEventListener('click', closeLargePhotoView);
     prevBtn.addEventListener('click', () => navigatePhoto(-1));
@@ -1013,6 +1122,7 @@ function initializeLargePhotoView() {
     copyFromPreviousBtn.addEventListener('click', copyFromPreviousPhoto);
     setManualPositionBtn.addEventListener('click', setManualPositionManually);
     setPredefinedPositionBtn.addEventListener('click', showPredefinedPositionsModal);
+    editMetadataBtn.addEventListener('click', editPhotoMetadata);
 
     // Close on background click
     modal.addEventListener('click', (e) => {
@@ -1068,6 +1178,9 @@ async function displayLargePhoto(index) {
         // Set manual position button is always enabled when a photo is displayed
         document.getElementById('set-manual-position').disabled = false;
         
+        // Edit metadata button is always enabled when a photo is displayed
+        document.getElementById('edit-photo-metadata').disabled = false;
+        
         // Set predefined position button is enabled when positions are loaded
         fetch('/api/positions')
             .then(res => res.json())
@@ -1120,6 +1233,11 @@ function displayEXIFInfo(photo) {
             new: photo.new_name || photo.filename
         },
         {
+            label: 'Image Title',
+            current: photo.exif_image_title || 'N/A',
+            new: photo.new_title !== null && photo.new_title !== undefined ? (photo.new_title || '(blank)') : 'N/A'
+        },
+        {
             label: 'File Creation Time',
             current: formatDateTime(photo.creation_time),
             new: formatDateTime(photo.creation_time)
@@ -1127,7 +1245,7 @@ function displayEXIFInfo(photo) {
         {
             label: 'EXIF Capture Time',
             current: formatDateTime(photo.exif_capture_time),
-            new: formatDateTime(photo.exif_capture_time)
+            new: formatDateTime(photo.new_time)
         },
         {
             label: 'EXIF Position',
@@ -1830,6 +1948,165 @@ function navigatePhoto(direction) {
     if (newIndex >= 0 && newIndex < state.photos.length) {
         state.selectedPhotoIndex = newIndex;
         displayLargePhoto(newIndex);
+    }
+}
+
+async function editPhotoMetadata() {
+    if (state.selectedPhotoIndex === null) return;
+    
+    const photo = state.photos[state.selectedPhotoIndex];
+    const photoIndex = photo.original_index !== undefined ? photo.original_index : state.selectedPhotoIndex;
+    
+    // Format current values for display
+    const currentTime = photo.new_time || photo.exif_capture_time;
+    const currentTitle = photo.new_title || photo.exif_image_title || '';
+    
+    // Format datetime for input (datetime-local expects YYYY-MM-DDTHH:MM:SS format)
+    let formattedTime = '';
+    if (currentTime) {
+        try {
+            const dt = new Date(currentTime);
+            // Format as YYYY-MM-DDTHH:MM:SS
+            formattedTime = dt.getFullYear() + '-' + 
+                String(dt.getMonth() + 1).padStart(2, '0') + '-' +
+                String(dt.getDate()).padStart(2, '0') + 'T' +
+                String(dt.getHours()).padStart(2, '0') + ':' +
+                String(dt.getMinutes()).padStart(2, '0') + ':' +
+                String(dt.getSeconds()).padStart(2, '0');
+        } catch (e) {
+            console.error('Error formatting time:', e);
+        }
+    }
+    
+    // Set values in modal
+    document.getElementById('edit-photo-title-input').value = currentTitle;
+    document.getElementById('edit-photo-time-input').value = formattedTime;
+    
+    // Store current photo index for later use
+    state.editingPhotoIndex = photoIndex;
+    state.editingOriginalTitle = currentTitle;
+    state.editingOriginalTime = currentTime;
+    
+    // Show modal
+    const modal = document.getElementById('edit-metadata-modal');
+    modal.classList.add('active');
+}
+
+function initializeEditMetadataModal() {
+    const modal = document.getElementById('edit-metadata-modal');
+    const closeBtn = document.getElementById('close-edit-metadata-modal');
+    const closeModalBtn = document.getElementById('close-metadata-modal-btn');
+    const applyTitleBtn = document.getElementById('apply-title-btn');
+    const applyTimeBtn = document.getElementById('apply-time-btn');
+    
+    closeBtn.addEventListener('click', () => {
+        modal.classList.remove('active');
+    });
+    
+    closeModalBtn.addEventListener('click', () => {
+        modal.classList.remove('active');
+    });
+    
+    applyTitleBtn.addEventListener('click', async () => {
+        await applyTitleChange();
+    });
+    
+    applyTimeBtn.addEventListener('click', async () => {
+        await applyTimeChange();
+    });
+    
+    // Close on background click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+        }
+    });
+}
+
+async function applyTitleChange() {
+    const newTitle = document.getElementById('edit-photo-title-input').value;
+    
+    // Only update if changed
+    if (newTitle === state.editingOriginalTitle) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/photos/${state.editingPhotoIndex}/metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_title: newTitle })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Title updated successfully!');
+            state.editingOriginalTitle = newTitle;
+            // Reload photos and refresh display
+            await loadPhotos();
+            await displayLargePhoto(state.selectedPhotoIndex);
+        } else {
+            alert('Error updating title: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error updating title:', error);
+        alert('Error updating title: ' + error.message);
+    }
+}
+
+async function applyTimeChange() {
+    const newTimeValue = document.getElementById('edit-photo-time-input').value;
+    
+    // Format original time for comparison (with seconds)
+    const originalTimeFormatted = state.editingOriginalTime ? 
+        new Date(state.editingOriginalTime).toISOString().slice(0, 19) : '';
+    
+    // Only update if changed
+    if (newTimeValue === originalTimeFormatted) {
+        return;
+    }
+    
+    let updateData = {};
+    
+    if (newTimeValue === '') {
+        updateData.new_time = '';  // Clear time
+    } else {
+        try {
+            const dt = new Date(newTimeValue);
+            if (!isNaN(dt.getTime())) {
+                updateData.new_time = dt.toISOString();
+            } else {
+                alert('Invalid time format');
+                return;
+            }
+        } catch (e) {
+            alert('Invalid time format');
+            return;
+        }
+    }
+    
+    try {
+        const response = await fetch(`/api/photos/${state.editingPhotoIndex}/metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Time updated successfully!');
+            state.editingOriginalTime = updateData.new_time ? new Date(updateData.new_time).toISOString() : null;
+            // Reload photos and refresh display
+            await loadPhotos();
+            await displayLargePhoto(state.selectedPhotoIndex);
+        } else {
+            alert('Error updating time: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error updating time:', error);
+        alert('Error updating time: ' + error.message);
     }
 }
 

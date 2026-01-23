@@ -13,6 +13,9 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 - **Adjustable Thumbnails**: Slide control for thumbnail size (100-400px)
 - **Cache-Busting**: Automatic thumbnail and image refresh with timestamp parameters
 - **Cross-Platform**: Works on Windows, Mac, and Linux with proper EXIF handling
+- **Photo Renaming**: Configurable filename format with EXIF capture time or file creation time fallback
+- **Metadata Editing**: Edit photo title and timestamp individually with modal interface
+- **Title Management**: Extract and edit ImageDescription from EXIF metadata
 
 ### 🗺️ GPS & Geotagging
 - **Dual Map Providers**: Switch between OpenStreetMap and Google Maps
@@ -77,10 +80,11 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
   1. Photo Thumbnails View (with dual map provider)
   2. GPX View (with dual map provider and time offset controls)
   3. Positions View (YAML file management)
-  4. Large Photo View (modal with dual map provider)
+  4. Settings View (photo renaming and metadata configuration)
+  5. Large Photo View (modal with dual map provider and metadata editing)
 - **Clean Checkboxes**: Tag checkboxes without distracting labels
 - **Emoji Markers**: Proper UTF-8 emoji support (🔴 🔵 🟡 🟢) in legend
-- **Styled Modals**: Beautiful position selection with hover effects
+- **Styled Modals**: Beautiful position selection and metadata editing with hover effects
 
 ## Technology Stack
 
@@ -242,6 +246,39 @@ http://127.0.0.1:8000
    - Predefined positions become available in the Large Photo View
    - Click the 📍 button to select from loaded positions
 
+### Settings View
+
+1. **Photo Renaming**:
+   - Configure filename format using Python strftime codes
+   - Default format: `%Y%m%d_%H%M%S` (e.g., `20260123_143052.jpg`)
+   - Available format codes:
+     - `%Y` - Year (4 digits, e.g., 2026)
+     - `%m` - Month (01-12)
+     - `%d` - Day (01-31)
+     - `%H` - Hour 24h (00-23)
+     - `%M` - Minute (00-59)
+     - `%S` - Second (00-59)
+     - `%I` - Hour 12h (01-12)
+     - `%p` - AM/PM
+   - Click "Preview Names" to see first 20 photos old → new
+   - Click "Apply Format" to update new_name column for all photos
+   - Falls back to file creation time if EXIF capture time not available
+   - **Automatic Deduplication**: If multiple photos have same timestamp, letters (a, b, c) are appended automatically
+     - Example: `20260123_143052.jpg`, `20260123_143052a.jpg`, `20260123_143052b.jpg`
+     - Case-insensitive comparison for Windows compatibility
+
+2. **Photo Title Management**:
+   - Set title for all photos at once
+   - Set title for tagged photos only
+   - Clear all titles
+   - Titles populate the new_title column
+   - Uses ImageDescription EXIF field (cross-platform standard)
+   - Fallback support for Windows XPTitle and XPComment tags
+
+3. **Format Help**:
+   - Collapsible help section with format codes and examples
+   - Click to expand/collapse
+
 ### Large Photo View
 
 1. **Navigation**:
@@ -251,10 +288,26 @@ http://127.0.0.1:8000
 
 2. **Viewing Information**:
    - Left side: Full-size photo
-   - Top right: EXIF metadata
+   - Top right: EXIF metadata with Photo Information table
+     - Shows Current Value and New Value columns
+     - Displays: Filename, Image Title, File Creation Time, EXIF Capture Time, EXIF Position
+     - New Value shows: new_name, new_title, new_time (if set), final coordinates
    - Bottom right: Interactive location map with coordinate legend
 
-3. **Map Provider Selection**:
+3. **Edit Photo Metadata (✏️ button)**:
+   - Click "✏️ Edit Time & Title" button in Photo Information panel
+   - Modal window opens with editable fields:
+     - **Photo Title**: Text input for title (blank to clear)
+     - **Photo Date/Time**: datetime-local picker with seconds
+   - Each field has its own "Apply" button for independent updates
+   - Changes update the new_title and new_time columns
+   - Photo Information table updates immediately
+   - Title states:
+     - **N/A**: Not set (new_title is null)
+     - **(blank)**: Intentionally cleared (new_title is empty string)
+     - **value**: Custom title set
+
+4. **Map Provider Selection**:
    - Use the "Map:" dropdown to switch between OpenStreetMap and Google Maps
    - Current zoom and center position are maintained
 
@@ -316,6 +369,9 @@ Stores all photo information with the following columns:
 | full_path | string | Complete file path |
 | exif_capture_time | datetime | Capture time from EXIF |
 | creation_time | datetime | File creation time |
+| new_time | datetime | User-modified capture time (None if not set) |
+| exif_image_title | string | ImageDescription from EXIF (cross-platform) |
+| new_title | string | User-modified title (None if not set, "" if cleared) |
 | exif_latitude | float | GPS latitude from EXIF (-360 if none) |
 | exif_longitude | float | GPS longitude from EXIF (-360 if none) |
 | exif_altitude | float | GPS altitude from EXIF (None if none) |
@@ -328,7 +384,7 @@ Stores all photo information with the following columns:
 | final_latitude | float | **Active GPS latitude (cascade logic)** |
 | final_longitude | float | **Active GPS longitude (cascade logic)** |
 | final_altitude | float | **Active altitude (cascade logic)** |
-| new_name | string | Placeholder for renaming feature |
+| new_name | string | Generated filename based on format (auto-deduplicated) |
 | tagged | boolean | Tag status for filtering |
 | original_index | int | Original index before filtering (frontend) |
 
@@ -337,6 +393,12 @@ Stores all photo information with the following columns:
 2. Else if GPX coordinates exist → use GPX (lat, lng, elevation)
 3. Else → use EXIF (lat, lng, altitude)
 4. Final coordinates update automatically when any source changes
+
+**Title and Time Fields**:
+- `exif_image_title`: Read from EXIF ImageDescription (with fallback to XPTitle/XPComment on Windows)
+- `new_title`: User-modified title (None = not set, "" = cleared, value = custom)
+- `new_time`: User-modified timestamp (None = use original exif_capture_time)
+- Displayed in Photo Information table with Current and New Value columns
 
 ### pd_gpx_info DataFrame
 Stores GPX track point information with time offset support:
@@ -481,8 +543,8 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 
 ## Future Enhancements
 
-- [ ] Batch EXIF writing (save final GPS coordinates back to photos)
-- [ ] Photo renaming based on capture time/location
+- [ ] Batch EXIF writing (save final GPS coordinates and metadata back to photos)
+- [ ] Actual file renaming (apply new_name to files)
 - [ ] Export tagged photos to new folder
 - [ ] Support for RAW image formats
 - [ ] Multi-language support
@@ -495,8 +557,47 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [ ] Custom map marker styles
 - [ ] Photo clustering on map
 - [ ] Heatmap view for photo locations
+- [x] ~~Photo renaming based on capture time~~ ✅ Implemented in v1.3
+- [x] ~~Photo metadata editing~~ ✅ Implemented in v1.3
 
 ## Recent Updates
+
+### Version 1.3 - Photo Renaming & Metadata Editing
+
+**Photo Renaming System**:
+- ✅ Settings View added as 4th main view
+- ✅ Configurable filename format using Python strftime codes
+- ✅ Default format: `%Y%m%d_%H%M%S` (e.g., 20260123_143052.jpg)
+- ✅ Preview functionality showing first 20 photos (old → new)
+- ✅ Apply format updates new_name column for all photos
+- ✅ Automatic fallback to file creation time if no EXIF capture time
+- ✅ Smart deduplication: letters (a, b, c) appended to duplicate filenames
+- ✅ Case-insensitive comparison for Windows compatibility
+- ✅ Extension preservation
+
+**Photo Metadata Editing**:
+- ✅ new_time column for user-modified capture timestamps
+- ✅ new_title column for user-modified photo titles
+- ✅ exif_image_title extraction from ImageDescription EXIF field
+- ✅ Cross-platform EXIF title support (ImageDescription priority)
+- ✅ Fallback to Windows XPTitle and XPComment tags
+- ✅ Modal editor in Large Photo View with separate apply buttons
+- ✅ Individual photo editing via "✏️ Edit Time & Title" button
+- ✅ Datetime-local input with seconds for precise time editing
+- ✅ Photo Information table shows Current and New values
+- ✅ Title states: N/A (not set), (blank) (cleared), or custom value
+
+**Bulk Title Management**:
+- ✅ "Apply to All" sets title for all photos
+- ✅ "Apply to Tagged" sets title for tagged photos only
+- ✅ "Clear All Titles" removes all titles
+- ✅ API endpoints for title management
+
+**UI Improvements**:
+- ✅ Collapsible format help section with examples
+- ✅ Inline form layout with separate Apply buttons per field
+- ✅ Modal window for metadata editing
+- ✅ Real-time preview results display
 
 ### Version 1.2 - Altitude & Position Management
 

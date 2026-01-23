@@ -24,6 +24,7 @@
                 <li><a href="#" data-view="thumbnails" class="menu-link active">📷 Photo Thumbnails</a></li>
                 <li><a href="#" data-view="gpx" class="menu-link">🗺️ GPX View</a></li>
                 <li><a href="#" data-view="positions" class="menu-link">📍 Positions View</a></li>
+                <li><a href="#" data-view="settings" class="menu-link">⚙️ Settings</a></li>
             </ul>
         </nav>
     </div>
@@ -129,6 +130,42 @@
             <div id="positions-info" class="positions-info">
                 <h3>Loaded Positions</h3>
                 <div id="positions-container" class="positions-container"></div>
+            </div>
+        </div>
+
+        <!-- Settings View -->
+        <div id="settings-view" class="view-container">
+            <div class="settings-container">
+                <h2>Settings</h2>
+                
+                <div class="settings-section">
+                    <h3>Photo Renaming</h3>
+                    <div class="setting-item">
+                        <label for="filename-format">Filename Format:</label>
+                        <input type="text" id="filename-format" value="%Y%m%d_%H%M%S" class="format-input">
+                        <button id="apply-format" class="btn btn-primary">Apply Format</button>
+                        <button id="preview-names" class="btn btn-secondary">Preview Names</button>
+                    </div>
+                    <details class="format-help">
+                        <summary><strong>Format Codes and Examples</strong></summary>
+                        <div class="format-help-content">
+                            <strong>Available Format Codes:</strong>
+                            <ul>
+                                <li><code>%Y</code> - Year (4 digits, e.g., 2026)</li>
+                                <li><code>%m</code> - Month (01-12)</li>
+                                <li><code>%d</code> - Day (01-31)</li>
+                                <li><code>%H</code> - Hour 24h (00-23)</li>
+                                <li><code>%M</code> - Minute (00-59)</li>
+                                <li><code>%S</code> - Second (00-59)</li>
+                                <li><code>%I</code> - Hour 12h (01-12)</li>
+                                <li><code>%p</code> - AM/PM</li>
+                            </ul>
+                            <p><strong>Note:</strong> If EXIF capture time is not available, file creation time will be used.</p>
+                            <p><strong>Example:</strong> <code>%Y%m%d_%H%M%S</code> → <code>20260123_143052.jpg</code></p>
+                        </div>
+                    </details>
+                    <div id="preview-results" class="preview-results"></div>
+                </div>
             </div>
         </div>
 

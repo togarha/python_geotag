@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeThumbnailsView();
     initializeGPXView();
     initializePositionsView();
+    initializeSettingsView();
     initializeLargePhotoView();
     initializeKeyboardShortcuts();
 });
@@ -87,6 +88,11 @@ function switchView(viewName) {
         // Initialize map if switching to GPX view
         if (viewName === 'gpx' && !state.gpxMap) {
             initializeGPXMap();
+        }
+        
+        // Load format if switching to settings view
+        if (viewName === 'settings') {
+            loadFilenameFormat();
         }
     }
 }
@@ -853,6 +859,131 @@ async function removePositionFile(filename) {
         console.error('Error removing position file:', error);
         alert('Error removing position file.');
     }
+}
+
+// ==================== Settings View ====================
+
+function initializeSettingsView() {
+    const applyFormatBtn = document.getElementById('apply-format');
+    const previewNamesBtn = document.getElementById('preview-names');
+    
+    applyFormatBtn.addEventListener('click', applyFilenameFormat);
+    previewNamesBtn.addEventListener('click', previewFilenameFormat);
+    
+    // Load current format from backend
+    loadFilenameFormat();
+}
+
+async function loadFilenameFormat() {
+    try {
+        const response = await fetch('/api/filename-format');
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('filename-format').value = result.format;
+        }
+    } catch (error) {
+        console.error('Error loading filename format:', error);
+        // Keep default value from HTML if error
+    }
+}
+
+async function previewFilenameFormat() {
+    const format = document.getElementById('filename-format').value.trim();
+    
+    if (!format) {
+        alert('Please enter a filename format.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/preview-rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ format })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayPreviewResults(result.previews);
+        } else {
+            alert('Error previewing filenames: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error previewing filenames:', error);
+        alert('Error previewing filenames: ' + error.message);
+    }
+}
+
+async function applyFilenameFormat() {
+    const format = document.getElementById('filename-format').value.trim();
+    
+    if (!format) {
+        alert('Please enter a filename format.');
+        return;
+    }
+    
+    if (!confirm('This will update the new_name column for all photos. Continue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-rename-format', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ format })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully updated ${result.count} photo names.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying format: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying filename format:', error);
+        alert('Error applying filename format: ' + error.message);
+    }
+}
+
+function displayPreviewResults(previews) {
+    const previewResults = document.getElementById('preview-results');
+    const previewList = document.createElement('div');
+    previewList.className = 'preview-list';
+    
+    previewResults.innerHTML = '<h4>Preview (first 20 photos):</h4>';
+    
+    previews.forEach(preview => {
+        const item = document.createElement('div');
+        item.className = 'preview-item';
+        
+        const oldName = document.createElement('span');
+        oldName.className = 'preview-old';
+        oldName.textContent = preview.old_name;
+        
+        const arrow = document.createElement('span');
+        arrow.className = 'preview-arrow';
+        arrow.textContent = '→';
+        
+        const newName = document.createElement('span');
+        newName.className = 'preview-new';
+        newName.textContent = preview.new_name;
+        
+        item.appendChild(oldName);
+        item.appendChild(arrow);
+        item.appendChild(newName);
+        
+        previewList.appendChild(item);
+    });
+    
+    previewResults.appendChild(previewList);
+    previewResults.classList.add('active');
 }
 
 // ==================== Large Photo View ====================

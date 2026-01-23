@@ -17,6 +17,7 @@ class PhotoManager:
         self.current_folder: Optional[str] = None
         self.sort_by: str = "time"  # 'time' or 'name'
         self.thumbnail_cache = {}
+        self.filename_format: str = "%Y%m%d_%H%M%S"  # Default format for new filenames
         
     def scan_folder(self, folder_path: str, recursive: bool = False) -> pd.DataFrame:
         """Scan folder for photos and create pd_photo_info DataFrame"""
@@ -40,6 +41,7 @@ class PhotoManager:
         
         self.pd_photo_info = pd.DataFrame(photo_data)
         self.current_folder = folder_path
+        self._deduplicate_filenames()
         self._apply_sort()
         
         return self.pd_photo_info
@@ -126,6 +128,9 @@ class PhotoManager:
         info['final_latitude'] = info['exif_latitude']
         info['final_longitude'] = info['exif_longitude']
         info['final_altitude'] = info['exif_altitude']
+        
+        # Generate new filename based on current format
+        info['new_name'] = self._generate_new_filename_from_info(info)
         
         return info
     
@@ -336,3 +341,141 @@ class PhotoManager:
                             self.pd_photo_info.at[index, 'final_latitude'] = -360.0
                             self.pd_photo_info.at[index, 'final_longitude'] = -360.0
                             self.pd_photo_info.at[index, 'final_altitude'] = None
+    
+    def preview_rename_format(self, format_str: str, max_count: int = 20) -> list:
+        """
+        Preview what filenames would look like with the given format
+        Returns list of {old_name, new_name} dicts for first max_count photos
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return []
+        
+        previews = []
+        count = min(max_count, len(self.pd_photo_info))
+        
+        for index in range(count):
+            old_name = self.pd_photo_info.at[index, 'filename']
+            new_name = self._generate_new_filename(index, format_str)
+            
+            previews.append({
+                'old_name': old_name,
+                'new_name': new_name
+            })
+        
+        return previews
+    
+    def apply_rename_format(self, format_str: str) -> int:
+        """
+        Apply the filename format to all photos (updates new_name column)
+        Returns count of photos updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        # Update the stored format
+        self.filename_format = format_str
+        
+        for index in range(len(self.pd_photo_info)):
+            new_name = self._generate_new_filename(index, format_str)
+            self.pd_photo_info.at[index, 'new_name'] = new_name
+        
+        # Deduplicate filenames to avoid conflicts
+        self._deduplicate_filenames()
+        
+        return len(self.pd_photo_info)
+    
+    def get_filename_format(self) -> str:
+        """Get the current filename format"""
+        return self.filename_format
+    
+    def _deduplicate_filenames(self):
+        """
+        Handle duplicate filenames by appending letters (a, b, c, etc.)
+        Comparison is case-insensitive for Windows compatibility
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return
+        
+        # Create a temporary column with lowercase names for grouping
+        self.pd_photo_info['_temp_lower_name'] = self.pd_photo_info['new_name'].str.lower()
+        
+        # Group by lowercase name to find duplicates
+        name_groups = self.pd_photo_info.groupby('_temp_lower_name', sort=False)
+        
+        for lower_name, group in name_groups:
+            if len(group) > 1:
+                # Multiple photos have the same name (case-insensitive)
+                # Append letters a, b, c, etc. to all but the first
+                for i, idx in enumerate(group.index):
+                    if i > 0:  # Skip the first one (keep original name)
+                        old_name = self.pd_photo_info.at[idx, 'new_name']
+                        # Split name and extension
+                        name_path = Path(old_name)
+                        base_name = name_path.stem
+                        extension = name_path.suffix
+                        
+                        # Append letter (a, b, c, etc.)
+                        # chr(97) is 'a', chr(98) is 'b', etc.
+                        letter = chr(96 + i)  # 96 + 1 = 97 = 'a'
+                        new_name = f"{base_name}{letter}{extension}"
+                        
+                        self.pd_photo_info.at[idx, 'new_name'] = new_name
+                        # Update the temporary lowercase column too
+                        self.pd_photo_info.at[idx, '_temp_lower_name'] = new_name.lower()
+        
+        # Remove the temporary column
+        self.pd_photo_info.drop(columns=['_temp_lower_name'], inplace=True)
+    
+    def _generate_new_filename_from_info(self, info: Dict[str, Any]) -> str:
+        """
+        Generate new filename from photo info dict (used during scanning)
+        Uses EXIF capture time if available, otherwise file creation time
+        """
+        # Get the timestamp to use
+        capture_time = info['exif_capture_time']
+        
+        if capture_time is None or pd.isna(capture_time):
+            # Fall back to creation time
+            capture_time = info['creation_time']
+        
+        # Get the original file extension
+        old_filename = info['filename']
+        extension = Path(old_filename).suffix
+        
+        # Format the timestamp according to the format string
+        try:
+            new_base_name = capture_time.strftime(self.filename_format)
+            new_filename = f"{new_base_name}{extension}"
+        except Exception as e:
+            # If format is invalid, return original filename
+            print(f"Error formatting filename: {e}")
+            new_filename = old_filename
+        
+        return new_filename
+    
+    def _generate_new_filename(self, index: int, format_str: str) -> str:
+        """
+        Generate new filename for a photo based on format string
+        Uses EXIF capture time if available, otherwise file creation time
+        """
+        # Get the timestamp to use
+        capture_time = self.pd_photo_info.at[index, 'exif_capture_time']
+        
+        if capture_time is None or pd.isna(capture_time):
+            # Fall back to creation time
+            capture_time = self.pd_photo_info.at[index, 'creation_time']
+        
+        # Get the original file extension
+        old_filename = self.pd_photo_info.at[index, 'filename']
+        extension = Path(old_filename).suffix
+        
+        # Format the timestamp according to the format string
+        try:
+            new_base_name = capture_time.strftime(format_str)
+            new_filename = f"{new_base_name}{extension}"
+        except Exception as e:
+            # If format is invalid, return original filename
+            print(f"Error formatting filename: {e}")
+            new_filename = old_filename
+        
+        return new_filename

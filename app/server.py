@@ -53,6 +53,9 @@ class ElevationRequest(BaseModel):
     longitude: float
     service: str = "open-elevation"
 
+class FilenameFormatRequest(BaseModel):
+    format: str
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -422,5 +425,48 @@ async def set_sort_order(request: SortRequest):
     try:
         photo_manager.set_sort_order(request.sort_by)
         return {"success": True, "sort_by": request.sort_by}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/preview-rename")
+async def preview_rename(request: FilenameFormatRequest):
+    """
+    Preview what photo filenames would look like with the given format
+    Returns first 20 photos as preview
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        previews = photo_manager.preview_rename_format(request.format, max_count=20)
+        return {"success": True, "previews": previews}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/apply-rename-format")
+async def apply_rename_format(request: FilenameFormatRequest):
+    """
+    Apply the filename format to all photos (updates new_name column)
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.apply_rename_format(request.format)
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/filename-format")
+async def get_filename_format():
+    """
+    Get the current filename format
+    """
+    try:
+        format_str = photo_manager.get_filename_format()
+        return {"success": True, "format": format_str}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

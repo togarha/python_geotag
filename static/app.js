@@ -2267,8 +2267,16 @@ async function applyTimeChange() {
 
 function initializeKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
-        // Space - open large photo view
-        if (e.code === 'Space' && state.selectedPhotoIndex !== null) {
+        // Ignore keyboard shortcuts if user is typing in an input/textarea
+        const activeElement = document.activeElement;
+        const isTyping = activeElement && (
+            activeElement.tagName === 'INPUT' || 
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.isContentEditable
+        );
+        
+        // Space - open large photo view (only if not typing)
+        if (e.code === 'Space' && state.selectedPhotoIndex !== null && !isTyping) {
             const modal = document.getElementById('large-photo-modal');
             if (!modal.classList.contains('active')) {
                 e.preventDefault();

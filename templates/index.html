@@ -142,7 +142,7 @@
                     <h3>Photo Renaming</h3>
                     <div class="setting-item">
                         <label for="filename-format">Filename Format:</label>
-                        <input type="text" id="filename-format" value="%Y%m%d_%H%M%S" class="format-input">
+                        <input type="text" id="filename-format" value="%Y%m%d_%H%M%S_{title}" class="format-input">
                         <button id="apply-format" class="btn btn-primary">Apply Format</button>
                         <button id="preview-names" class="btn btn-secondary">Preview Names</button>
                     </div>
@@ -159,9 +159,14 @@
                                 <li><code>%S</code> - Second (00-59)</li>
                                 <li><code>%I</code> - Hour 12h (01-12)</li>
                                 <li><code>%p</code> - AM/PM</li>
+                                <li><code>{title}</code> - Photo title (spaces→underscores, sanitized)</li>
                             </ul>
                             <p><strong>Note:</strong> If EXIF capture time is not available, file creation time will be used.</p>
-                            <p><strong>Example:</strong> <code>%Y%m%d_%H%M%S</code> → <code>20260123_143052.jpg</code></p>
+                            <p><strong>Examples:</strong></p>
+                            <ul>
+                                <li><code>%Y%m%d_%H%M%S</code> → <code>20260123_143052.jpg</code></li>
+                                <li><code>%Y%m%d_%H%M%S_{title}</code> → <code>20260123_143052_My_Photo_Title.jpg</code> (or <code>20260123_143052.jpg</code> if no title)</li>
+                            </ul>
                         </div>
                     </details>
                     <div id="preview-results" class="preview-results"></div>

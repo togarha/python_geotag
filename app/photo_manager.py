@@ -17,7 +17,7 @@ class PhotoManager:
         self.current_folder: Optional[str] = None
         self.sort_by: str = "time"  # 'time' or 'name'
         self.thumbnail_cache = {}
-        self.filename_format: str = "%Y%m%d_%H%M%S"  # Default format for new filenames
+        self.filename_format: str = "%Y%m%d_%H%M%S_{title}"  # Default format for new filenames
         
     def scan_folder(self, folder_path: str, recursive: bool = False) -> pd.DataFrame:
         """Scan folder for photos and create pd_photo_info DataFrame"""
@@ -427,6 +427,14 @@ class PhotoManager:
         
         for index in range(len(self.pd_photo_info)):
             self.pd_photo_info.at[index, 'new_title'] = title
+            # Regenerate filename if format includes {title}
+            if '{title}' in self.filename_format:
+                new_name = self._generate_new_filename(index, self.filename_format)
+                self.pd_photo_info.at[index, 'new_name'] = new_name
+        
+        # Deduplicate filenames if format includes {title}
+        if '{title}' in self.filename_format:
+            self._deduplicate_filenames()
         
         return len(self.pd_photo_info)
     
@@ -442,7 +450,15 @@ class PhotoManager:
         for index in range(len(self.pd_photo_info)):
             if self.pd_photo_info.at[index, 'tagged']:
                 self.pd_photo_info.at[index, 'new_title'] = title
+                # Regenerate filename if format includes {title}
+                if '{title}' in self.filename_format:
+                    new_name = self._generate_new_filename(index, self.filename_format)
+                    self.pd_photo_info.at[index, 'new_name'] = new_name
                 count += 1
+        
+        # Deduplicate filenames if format includes {title}
+        if '{title}' in self.filename_format:
+            self._deduplicate_filenames()
         
         return count
     
@@ -456,6 +472,14 @@ class PhotoManager:
         
         for index in range(len(self.pd_photo_info)):
             self.pd_photo_info.at[index, 'new_title'] = None
+            # Regenerate filename if format includes {title}
+            if '{title}' in self.filename_format:
+                new_name = self._generate_new_filename(index, self.filename_format)
+                self.pd_photo_info.at[index, 'new_name'] = new_name
+        
+        # Deduplicate filenames if format includes {title}
+        if '{title}' in self.filename_format:
+            self._deduplicate_filenames()
         
         return len(self.pd_photo_info)
     
@@ -472,6 +496,8 @@ class PhotoManager:
         if self.pd_photo_info is None or index >= len(self.pd_photo_info):
             raise ValueError("Invalid photo index")
         
+        title_changed = False
+        
         if new_time is not None:
             if new_time == "":  # Empty string means clear/set to None
                 self.pd_photo_info.at[index, 'new_time'] = None
@@ -486,6 +512,14 @@ class PhotoManager:
         if new_title is not None:
             # Keep empty string as empty string (don't convert to None)
             self.pd_photo_info.at[index, 'new_title'] = new_title
+            title_changed = True
+        
+        # Regenerate filename if title changed and format includes {title}
+        if title_changed and '{title}' in self.filename_format:
+            new_name = self._generate_new_filename(index, self.filename_format)
+            self.pd_photo_info.at[index, 'new_name'] = new_name
+            # Note: We don't call _deduplicate_filenames() here as it's a single photo
+            # The user can preview/apply format to check for duplicates
         
         return True
     
@@ -531,10 +565,35 @@ class PhotoManager:
         # Remove the temporary column
         self.pd_photo_info.drop(columns=['_temp_lower_name'], inplace=True)
     
+    def _sanitize_title_for_filename(self, title: str) -> str:
+        """
+        Sanitize photo title for use in filename:
+        - Replace spaces with underscores
+        - Remove or replace characters not allowed in filenames across OS
+        """
+        if not title or pd.isna(title):
+            return ""
+        
+        # Replace spaces with underscores
+        sanitized = title.replace(' ', '_')
+        
+        # Remove/replace characters not allowed in filenames (Windows/Linux/macOS)
+        # Windows doesn't allow: < > : " / \ | ? *
+        # Also remove control characters (0-31) and other problematic chars
+        invalid_chars = '<>:"/\\|?*\x00-\x1f'
+        for char in invalid_chars:
+            sanitized = sanitized.replace(char, '_')
+        
+        # Remove leading/trailing dots and spaces (problematic in Windows)
+        sanitized = sanitized.strip('._')
+        
+        return sanitized
+    
     def _generate_new_filename_from_info(self, info: Dict[str, Any]) -> str:
         """
         Generate new filename from photo info dict (used during scanning)
         Uses EXIF capture time if available, otherwise file creation time
+        Supports {title} placeholder for photo title
         """
         # Get the timestamp to use
         capture_time = info['exif_capture_time']
@@ -549,7 +608,22 @@ class PhotoManager:
         
         # Format the timestamp according to the format string
         try:
-            new_base_name = capture_time.strftime(self.filename_format)
+            format_str = self.filename_format
+            
+            # Check if format contains {title} placeholder
+            if '{title}' in format_str:
+                # Get and sanitize title
+                title = info.get('new_title') if info.get('new_title') is not None else info.get('exif_image_title')
+                sanitized_title = self._sanitize_title_for_filename(title)
+                
+                if sanitized_title:
+                    # Replace {title} with sanitized title
+                    format_str = format_str.replace('{title}', sanitized_title)
+                else:
+                    # Remove {title} and any adjacent underscores/separators if no title
+                    format_str = format_str.replace('_{title}', '').replace('{title}_', '').replace('{title}', '')
+            
+            new_base_name = capture_time.strftime(format_str)
             new_filename = f"{new_base_name}{extension}"
         except Exception as e:
             # If format is invalid, return original filename
@@ -562,6 +636,7 @@ class PhotoManager:
         """
         Generate new filename for a photo based on format string
         Uses EXIF capture time if available, otherwise file creation time
+        Supports {title} placeholder for photo title
         """
         # Get the timestamp to use
         capture_time = self.pd_photo_info.at[index, 'exif_capture_time']
@@ -576,6 +651,22 @@ class PhotoManager:
         
         # Format the timestamp according to the format string
         try:
+            # Check if format contains {title} placeholder
+            if '{title}' in format_str:
+                # Get and sanitize title
+                title = self.pd_photo_info.at[index, 'new_title']
+                if title is None or pd.isna(title):
+                    title = self.pd_photo_info.at[index, 'exif_image_title']
+                
+                sanitized_title = self._sanitize_title_for_filename(title)
+                
+                if sanitized_title:
+                    # Replace {title} with sanitized title
+                    format_str = format_str.replace('{title}', sanitized_title)
+                else:
+                    # Remove {title} and any adjacent underscores/separators if no title
+                    format_str = format_str.replace('_{title}', '').replace('{title}_', '').replace('{title}', '')
+            
             new_base_name = capture_time.strftime(format_str)
             new_filename = f"{new_base_name}{extension}"
         except Exception as e:

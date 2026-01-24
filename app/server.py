@@ -67,6 +67,10 @@ class TimeOffsetRequest(BaseModel):
     offset: str
     mode: str = 'all'  # 'all', 'tagged', or 'not_updated'
 
+class SettingsUpdate(BaseModel):
+    map_provider: Optional[str] = None
+    elevation_service: Optional[str] = None
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -81,6 +85,12 @@ photo_manager = PhotoManager()
 gpx_manager = GPXManager()
 elevation_service = ElevationService()
 positions_manager = PositionsManager()
+
+# Application settings (can be persisted to config file in future)
+app_settings = {
+    "map_provider": "osm",  # 'osm' or 'google'
+    "elevation_service": "open-elevation"  # 'none', 'open-elevation', 'opentopodata', or 'google'
+}
 
 # Serve static files
 static_path = Path(__file__).parent.parent / "static"
@@ -549,5 +559,29 @@ async def update_photo_metadata(index: int, request: PhotoMetadataUpdate):
         
         photo_manager.update_photo_metadata(index, request.new_time, request.new_title, gpx_manager)
         return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/settings")
+async def get_settings():
+    """
+    Get current application settings
+    """
+    return app_settings
+
+@app.post("/api/settings")
+async def update_settings(request: SettingsUpdate):
+    """
+    Update application settings
+    """
+    try:
+        if request.map_provider is not None:
+            app_settings["map_provider"] = request.map_provider
+        if request.elevation_service is not None:
+            app_settings["elevation_service"] = request.elevation_service
+        
+        # TODO: Persist settings to config file
+        
+        return {"success": True, "settings": app_settings}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

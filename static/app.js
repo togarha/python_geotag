@@ -34,6 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeLargePhotoView();
     initializeEditMetadataModal();
     initializeKeyboardShortcuts();
+    
+    // Load settings from backend
+    loadSettings();
 });
 
 // ==================== Menu Management ====================
@@ -873,6 +876,8 @@ function initializeSettingsView() {
     const applyTimeOffsetAllBtn = document.getElementById('apply-time-offset-all');
     const applyTimeOffsetTaggedBtn = document.getElementById('apply-time-offset-tagged');
     const applyTimeOffsetNotUpdatedBtn = document.getElementById('apply-time-offset-not-updated');
+    const mapProviderSelect = document.getElementById('map-provider');
+    const elevationServiceSelect = document.getElementById('elevation-service');
     
     applyFormatBtn.addEventListener('click', applyFilenameFormat);
     previewNamesBtn.addEventListener('click', previewFilenameFormat);
@@ -883,8 +888,57 @@ function initializeSettingsView() {
     applyTimeOffsetTaggedBtn.addEventListener('click', applyTimeOffsetTagged);
     applyTimeOffsetNotUpdatedBtn.addEventListener('click', applyTimeOffsetNotUpdated);
     
+    // Save settings when changed
+    mapProviderSelect.addEventListener('change', saveSettings);
+    elevationServiceSelect.addEventListener('change', saveSettings);
+    
     // Load current format from backend
     loadFilenameFormat();
+}
+
+async function loadSettings() {
+    try {
+        const response = await fetch('/api/settings');
+        const settings = await response.json();
+        
+        // Apply settings to UI
+        const mapProviderSelect = document.getElementById('map-provider');
+        const elevationServiceSelect = document.getElementById('elevation-service');
+        
+        if (mapProviderSelect && settings.map_provider) {
+            mapProviderSelect.value = settings.map_provider;
+        }
+        
+        if (elevationServiceSelect && settings.elevation_service) {
+            elevationServiceSelect.value = settings.elevation_service;
+        }
+    } catch (error) {
+        console.error('Error loading settings:', error);
+    }
+}
+
+async function saveSettings() {
+    try {
+        const mapProvider = document.getElementById('map-provider').value;
+        const elevationService = document.getElementById('elevation-service').value;
+        
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                map_provider: mapProvider,
+                elevation_service: elevationService
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            console.error('Failed to save settings');
+        }
+    } catch (error) {
+        console.error('Error saving settings:', error);
+    }
 }
 
 async function loadFilenameFormat() {
@@ -1778,6 +1832,11 @@ function displayPhotoMapOSM(photo, index, mapElement) {
 async function fetchElevation(lat, lng) {
     try {
         const elevationService = document.getElementById('elevation-service').value;
+        
+        // Skip elevation fetching if service is set to "none"
+        if (elevationService === 'none') {
+            return null;
+        }
         
         const response = await fetch('/api/elevation', {
             method: 'POST',

@@ -48,21 +48,7 @@
 
             <div class="controls-bar">
                 <div class="control-group">
-                    <label for="map-provider">Map:</label>
-                    <select id="map-provider">
-                        <option value="osm">OpenStreetMap</option>
-                        <option value="google">Google Maps</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="elevation-service">Elevation API:</label>
-                    <select id="elevation-service">
-                        <option value="open-elevation">Open-Elevation</option>
-                        <option value="opentopodata">OpenTopoData</option>
-                        <option value="google">Google Maps</option>
-                    </select>
-                </div>
-                <div class="control-group">
+
                     <label for="sort-select">Sort by:</label>
                     <select id="sort-select">
                         <option value="time">Capture Time</option>
@@ -194,6 +180,27 @@
                         <button id="apply-time-offset-not-updated" class="btn btn-secondary">Apply to Not Updated</button>
                     </div>
                     <p class="help-text">Apply a time offset to EXIF capture times. Format: +HH:MM:SS or -HH:MM:SS (e.g., +01:30:00 adds 1h 30m, -00:15:30 subtracts 15m 30s). Offset is always applied to the original EXIF time.</p>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Map & Elevation Settings</h3>
+                    <div class="setting-item">
+                        <label for="map-provider">Map Provider:</label>
+                        <select id="map-provider">
+                            <option value="osm">OpenStreetMap</option>
+                            <option value="google">Google Maps</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="elevation-service">Elevation API:</label>
+                        <select id="elevation-service">
+                            <option value="none">None</option>
+                            <option value="open-elevation">Open-Elevation</option>
+                            <option value="opentopodata">OpenTopoData</option>
+                            <option value="google">Google Maps</option>
+                        </select>
+                    </div>
+                    <p class="help-text">Select "None" for Elevation API to disable automatic elevation fetching.</p>
                 </div>
             </div>
         </div>

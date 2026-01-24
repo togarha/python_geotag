@@ -845,6 +845,20 @@ body {
     border-left: 4px solid #bdc3c7;
 }
 
+.clickable-marker {
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.clickable-marker:hover {
+    background-color: #e8f4f8;
+    transform: translateX(2px);
+}
+
+.clickable-marker:active {
+    transform: translateX(0px);
+}
+
 .marker-label.exif-marker {
     border-left-color: #e74c3c;
 }

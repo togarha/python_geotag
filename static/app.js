@@ -1124,6 +1124,16 @@ function initializeLargePhotoView() {
     setPredefinedPositionBtn.addEventListener('click', showPredefinedPositionsModal);
     editMetadataBtn.addEventListener('click', editPhotoMetadata);
 
+    // Add click handlers for EXIF and GPX marker labels
+    const exifMarkerLabel = document.getElementById('exif-marker-label');
+    const gpxMarkerLabel = document.getElementById('gpx-marker-label');
+    if (exifMarkerLabel) {
+        exifMarkerLabel.addEventListener('click', copyExifToManual);
+    }
+    if (gpxMarkerLabel) {
+        gpxMarkerLabel.addEventListener('click', copyGpxToManual);
+    }
+
     // Close on background click
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
@@ -1321,8 +1331,12 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
             exifCoordsText += ` (${photo.exif_altitude.toFixed(1)} m)`;
         }
         document.getElementById('exif-coords').textContent = exifCoordsText;
+        // Enable clickable class for EXIF marker
+        document.getElementById('exif-marker-label').classList.add('clickable-marker');
     } else {
         document.getElementById('exif-coords').textContent = '--';
+        // Disable clickable class for EXIF marker
+        document.getElementById('exif-marker-label').classList.remove('clickable-marker');
     }
 
     // GPX marker (blue)
@@ -1348,8 +1362,12 @@ function displayPhotoMapGoogle(photo, index, mapElement) {
             gpxCoordsText += ` (${photo.gpx_altitude.toFixed(1)} m)`;
         }
         document.getElementById('gpx-coords').textContent = gpxCoordsText;
+        // Enable clickable class for GPX marker
+        document.getElementById('gpx-marker-label').classList.add('clickable-marker');
     } else {
         document.getElementById('gpx-coords').textContent = '--';
+        // Disable clickable class for GPX marker
+        document.getElementById('gpx-marker-label').classList.remove('clickable-marker');
     }
 
     // Manual marker (yellow)
@@ -1476,8 +1494,12 @@ function displayPhotoMapOSM(photo, index, mapElement) {
             exifCoordsText += ` (${photo.exif_altitude.toFixed(1)} m)`;
         }
         document.getElementById('exif-coords').textContent = exifCoordsText;
+        // Enable clickable class for EXIF marker
+        document.getElementById('exif-marker-label').classList.add('clickable-marker');
     } else {
         document.getElementById('exif-coords').textContent = '--';
+        // Disable clickable class for EXIF marker
+        document.getElementById('exif-marker-label').classList.remove('clickable-marker');
     }
 
     // GPX marker (blue)
@@ -1501,8 +1523,12 @@ function displayPhotoMapOSM(photo, index, mapElement) {
             gpxCoordsText += ` (${photo.gpx_altitude.toFixed(1)} m)`;
         }
         document.getElementById('gpx-coords').textContent = gpxCoordsText;
+        // Enable clickable class for GPX marker
+        document.getElementById('gpx-marker-label').classList.add('clickable-marker');
     } else {
         document.getElementById('gpx-coords').textContent = '--';
+        // Disable clickable class for GPX marker
+        document.getElementById('gpx-marker-label').classList.remove('clickable-marker');
     }
 
     // Manual marker (yellow, draggable)
@@ -1788,6 +1814,54 @@ async function setManualPositionManually() {
     } catch (error) {
         console.error('Error setting manual position:', error);
         alert('Error setting position: ' + error.message);
+    }
+}
+
+async function copyExifToManual() {
+    if (state.selectedPhotoIndex === null) return;
+    
+    const photo = state.photos[state.selectedPhotoIndex];
+    
+    // Check if EXIF coordinates exist
+    if (!photo || photo.exif_latitude === -360 || photo.exif_longitude === -360) {
+        alert('No EXIF coordinates available for this photo.');
+        return;
+    }
+    
+    try {
+        // Create latLng object and call placeManualMarker with EXIF coordinates and altitude
+        const latLng = { lat: photo.exif_latitude, lng: photo.exif_longitude };
+        const altitude = photo.exif_altitude !== null && photo.exif_altitude !== undefined ? photo.exif_altitude : null;
+        
+        await placeManualMarker(latLng, state.selectedPhotoIndex, altitude);
+        
+    } catch (error) {
+        console.error('Error copying EXIF position to manual:', error);
+        alert('Error copying EXIF position: ' + error.message);
+    }
+}
+
+async function copyGpxToManual() {
+    if (state.selectedPhotoIndex === null) return;
+    
+    const photo = state.photos[state.selectedPhotoIndex];
+    
+    // Check if GPX coordinates exist
+    if (!photo || photo.gpx_latitude === -360 || photo.gpx_longitude === -360) {
+        alert('No GPX coordinates available for this photo.');
+        return;
+    }
+    
+    try {
+        // Create latLng object and call placeManualMarker with GPX coordinates and altitude
+        const latLng = { lat: photo.gpx_latitude, lng: photo.gpx_longitude };
+        const altitude = photo.gpx_altitude !== null && photo.gpx_altitude !== undefined ? photo.gpx_altitude : null;
+        
+        await placeManualMarker(latLng, state.selectedPhotoIndex, altitude);
+        
+    } catch (error) {
+        console.error('Error copying GPX position to manual:', error);
+        alert('Error copying GPX position: ' + error.message);
     }
 }
 

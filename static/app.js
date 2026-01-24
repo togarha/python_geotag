@@ -89,9 +89,24 @@ function switchView(viewName) {
         targetView.classList.add('active');
         state.currentView = viewName;
         
-        // Initialize map if switching to GPX view
-        if (viewName === 'gpx' && !state.gpxMap) {
-            initializeGPXMap();
+        // Initialize or refresh GPX map if switching to GPX view
+        if (viewName === 'gpx') {
+            // Sync GPX map provider selector with current state
+            const gpxMapProviderSelect = document.getElementById('gpx-map-provider');
+            if (gpxMapProviderSelect) {
+                gpxMapProviderSelect.value = state.gpxMapProvider;
+            }
+            
+            if (!state.gpxMap) {
+                initializeGPXMap();
+            } else {
+                // Map exists, just ensure proper sizing
+                state.gpxMap.invalidateSize();
+            }
+            // Reload tracks if they exist
+            if (state.gpxTracks && state.gpxTracks.length > 0) {
+                displayGPXTracks();
+            }
         }
         
         // Load format if switching to settings view
@@ -121,9 +136,38 @@ function initializeThumbnailsView() {
     // Map provider select
     mapProviderSelect.addEventListener('change', () => {
         state.mapProvider = mapProviderSelect.value;
-        // Reset maps so they reinitialize with new provider
-        state.photoMap = null;
-        state.gpxMap = null;
+        state.gpxMapProvider = mapProviderSelect.value; // Sync GPX map provider
+        
+        // Update GPX map provider selector
+        const gpxMapProviderSelect = document.getElementById('gpx-map-provider');
+        if (gpxMapProviderSelect) {
+            gpxMapProviderSelect.value = mapProviderSelect.value;
+        }
+        
+        // Properly remove Leaflet maps before resetting
+        if (state.photoMap) {
+            if (state.photoMap.remove) {
+                state.photoMap.remove();
+            }
+            state.photoMap = null;
+        }
+        if (state.gpxMap) {
+            if (state.gpxMap.remove) {
+                state.gpxMap.remove();
+            }
+            state.gpxMap = null;
+        }
+        
+        // Refresh GPX tracks if tracks are loaded AND GPX view is visible
+        const gpxView = document.getElementById('gpx-view');
+        if (state.gpxTracks && state.gpxTracks.length > 0 && gpxView && gpxView.style.display !== 'none') {
+            displayGPXTracks();
+        }
+        
+        // Refresh current photo display if in large photo view
+        if (state.currentPhotoIndex !== null && state.photos && state.photos[state.currentPhotoIndex]) {
+            displayPhotoMap(state.photos[state.currentPhotoIndex], state.currentPhotoIndex);
+        }
     });
 
     // Load folder button
@@ -378,13 +422,32 @@ function initializeGPXView() {
     // Map provider change handler
     gpxMapProvider.addEventListener('change', (e) => {
         state.gpxMapProvider = e.target.value;
-        // Reinitialize map with new provider
-        if (state.gpxTracks.length > 0) {
-            // Clear old map
-            const mapContainer = document.getElementById('gpx-map');
-            mapContainer.innerHTML = '';
+        state.mapProvider = e.target.value; // Sync main map provider
+        
+        // Update settings map provider selector
+        const mapProviderSelect = document.getElementById('map-provider');
+        if (mapProviderSelect) {
+            mapProviderSelect.value = e.target.value;
+        }
+        
+        // Clear old map
+        if (state.gpxMap) {
+            if (state.gpxMap.remove) {
+                state.gpxMap.remove();
+            }
             state.gpxMap = null;
-            // Redisplay tracks with new provider
+        }
+        
+        // Also clear photo map since provider changed
+        if (state.photoMap) {
+            if (state.photoMap.remove) {
+                state.photoMap.remove();
+            }
+            state.photoMap = null;
+        }
+        
+        // Redisplay tracks with new provider if they exist
+        if (state.gpxTracks.length > 0) {
             displayGPXTracks();
         }
     });
@@ -404,13 +467,25 @@ function initializeGPXMap() {
             mapTypeId: 'terrain'
         });
     } else {
-        // OpenStreetMap (Leaflet)
+        // OpenStreetMap or ESRI (Leaflet)
         state.gpxMap = L.map(mapElement).setView([39.4699, -0.3763], 10);
         
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19
-        }).addTo(state.gpxMap);
+        if (state.gpxMapProvider === 'esri') {
+            // ESRI World Imagery
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                maxZoom: 19
+            }).addTo(state.gpxMap);
+        } else {
+            // OpenStreetMap
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(state.gpxMap);
+        }
+        
+        // Always invalidate size when displaying to ensure proper rendering
+        state.gpxMap.invalidateSize();
     }
 }
 
@@ -450,18 +525,26 @@ async function handleGPXUpload(e) {
 }
 
 function displayGPXTracks() {
-    // Initialize map if not already, or clear and reinitialize to remove old polylines
+    // Initialize map if not already
     if (!state.gpxMap) {
         initializeGPXMap();
     } else {
-        // Clear existing map and reinitialize to remove old polylines
+        // Clear existing polylines/overlays without recreating the map
         if (state.gpxMapProvider === 'google') {
+            // For Google Maps, we need to track and remove polylines differently
+            // For now, reinitialize
             state.gpxMap = null;
+            initializeGPXMap();
         } else {
-            state.gpxMap.remove();
-            state.gpxMap = null;
+            // For Leaflet, clear all layers except the tile layer
+            state.gpxMap.eachLayer((layer) => {
+                if (layer instanceof L.Polyline) {
+                    state.gpxMap.removeLayer(layer);
+                }
+            });
+            // Always invalidate size when displaying to ensure proper rendering
+            state.gpxMap.invalidateSize();
         }
-        initializeGPXMap();
     }
 
     if (state.gpxMapProvider === 'google') {
@@ -509,6 +592,9 @@ function displayGPXTracks() {
         if (bounds.length > 0) {
             state.gpxMap.fitBounds(bounds);
         }
+        
+        // Ensure tiles load properly after bounds adjustment
+        state.gpxMap.invalidateSize();
     }
 
     // Display track info
@@ -932,6 +1018,7 @@ async function loadSettings() {
         if (mapProviderSelect && settings.map_provider) {
             mapProviderSelect.value = settings.map_provider;
             state.mapProvider = settings.map_provider;
+            state.gpxMapProvider = settings.map_provider; // Sync GPX map provider
         }
         
         if (elevationServiceSelect && settings.elevation_service) {
@@ -1795,17 +1882,29 @@ function displayPhotoMapOSM(photo, index, mapElement) {
     if (!state.photoMap) {
         state.photoMap = L.map(mapElement).setView([39.4699, -0.3763], 10);
         
-        // Add OpenStreetMap tiles
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19
-        }).addTo(state.photoMap);
+        // Add tile layer based on provider
+        if (state.mapProvider === 'esri') {
+            // ESRI World Imagery
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                maxZoom: 19
+            }).addTo(state.photoMap);
+        } else {
+            // OpenStreetMap
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(state.photoMap);
+        }
         
         // Add click listener for manual marker placement - use state.currentPhotoIndex
         state.photoMap.on('click', (e) => {
             placeManualMarker(e.latlng, state.currentPhotoIndex);
         });
     }
+    
+    // Always invalidate size when displaying to ensure proper rendering
+    state.photoMap.invalidateSize();
 
     // Clear existing markers
     Object.values(state.photoMapMarkers).forEach(marker => {

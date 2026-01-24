@@ -10,7 +10,7 @@ class ConfigManager:
     """Manages application configuration with YAML file persistence"""
     
     DEFAULT_CONFIG = {
-        "map_provider": "osm",  # 'osm' or 'google'
+        "map_provider": "osm",  # 'osm', 'esri', or 'google'
         "elevation_service": "open-elevation",  # 'none', 'open-elevation', 'opentopodata', or 'google'
         "filename_format": "%Y%m%d_%H%M%S_{title}",
         "include_subfolders": False,

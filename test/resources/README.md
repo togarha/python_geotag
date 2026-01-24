@@ -44,7 +44,7 @@ All configuration files support the following fields:
 
 | Field | Type | Options | Description |
 |-------|------|---------|-------------|
-| `map_provider` | string | `"osm"`, `"google"` | Map provider for displaying locations |
+| `map_provider` | string | `"osm"`, `"esri"`, `"google"` | Map provider for displaying locations |
 | `elevation_service` | string | `"none"`, `"open-elevation"`, `"opentopodata"`, `"google"` | Elevation API service |
 | `filename_format` | string | strftime format + `{title}` | Format for renaming photos |
 | `include_subfolders` | boolean | `true`, `false` | Whether to scan subfolders recursively |

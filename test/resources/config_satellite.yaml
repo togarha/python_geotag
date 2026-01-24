@@ -1,8 +1,8 @@
-map_provider: google
+map_provider: esri
 elevation_service: open-elevation
 filename_format: '%Y-%m-%d_%H%M_{title}'
-include_subfolders: false
+include_subfolders: true
 sort_by: name
-thumbnail_size: 400
+thumbnail_size: 150
 folder_path: C:\devel\geotag\test\resources
-auto_save_config: true
+auto_save_config: false

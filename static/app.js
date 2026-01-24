@@ -2366,7 +2366,8 @@ async function applyTimeChange() {
             return;
         }
         
-        updateData.new_time = dt.toISOString();
+        // Send in YYYY-MM-DD HH:MM:SS format (not ISO)
+        updateData.new_time = newTimeValue;
     }
     
     try {

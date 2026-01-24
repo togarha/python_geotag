@@ -375,6 +375,62 @@ class PhotoManager:
                             self.pd_photo_info.at[index, 'final_longitude'] = -360.0
                             self.pd_photo_info.at[index, 'final_altitude'] = None
     
+    def match_single_photo_with_gpx(self, index: int, gpx_manager, use_new_time: bool = True):
+        """
+        Match a single photo with GPX data based on its timestamp
+        Args:
+            index: Photo index
+            gpx_manager: GPXManager instance
+            use_new_time: If True, use new_time if available, otherwise use exif_capture_time
+        """
+        if self.pd_photo_info is None or index >= len(self.pd_photo_info):
+            return
+        
+        if not gpx_manager.has_data():
+            return
+        
+        # Get the time to use for matching
+        if use_new_time:
+            capture_time = self.pd_photo_info.at[index, 'new_time']
+            if capture_time is None or pd.isna(capture_time):
+                capture_time = self.pd_photo_info.at[index, 'exif_capture_time']
+        else:
+            capture_time = self.pd_photo_info.at[index, 'exif_capture_time']
+        
+        if capture_time is not None and pd.notna(capture_time):
+            closest_point = gpx_manager.find_closest_point(capture_time)
+            
+            if closest_point:
+                self.pd_photo_info.at[index, 'gpx_latitude'] = closest_point['latitude']
+                self.pd_photo_info.at[index, 'gpx_longitude'] = closest_point['longitude']
+                self.pd_photo_info.at[index, 'gpx_altitude'] = closest_point.get('elevation')
+                
+                # Update final coordinates if no manual position exists
+                manual_lat = self.pd_photo_info.at[index, 'manual_latitude']
+                if manual_lat == -360.0:
+                    self.pd_photo_info.at[index, 'final_latitude'] = closest_point['latitude']
+                    self.pd_photo_info.at[index, 'final_longitude'] = closest_point['longitude']
+                    self.pd_photo_info.at[index, 'final_altitude'] = closest_point.get('elevation')
+            else:
+                # Clear GPX coordinates if no match found
+                self.pd_photo_info.at[index, 'gpx_latitude'] = -360.0
+                self.pd_photo_info.at[index, 'gpx_longitude'] = -360.0
+                self.pd_photo_info.at[index, 'gpx_altitude'] = None
+                
+                # Update final coordinates if no manual position
+                manual_lat = self.pd_photo_info.at[index, 'manual_latitude']
+                if manual_lat == -360.0:
+                    # Fall back to EXIF
+                    exif_lat = self.pd_photo_info.at[index, 'exif_latitude']
+                    if exif_lat != -360.0:
+                        self.pd_photo_info.at[index, 'final_latitude'] = exif_lat
+                        self.pd_photo_info.at[index, 'final_longitude'] = self.pd_photo_info.at[index, 'exif_longitude']
+                        self.pd_photo_info.at[index, 'final_altitude'] = self.pd_photo_info.at[index, 'exif_altitude']
+                    else:
+                        self.pd_photo_info.at[index, 'final_latitude'] = -360.0
+                        self.pd_photo_info.at[index, 'final_longitude'] = -360.0
+                        self.pd_photo_info.at[index, 'final_altitude'] = None
+    
     def preview_rename_format(self, format_str: str, max_count: int = 20) -> list:
         """
         Preview what filenames would look like with the given format
@@ -483,13 +539,15 @@ class PhotoManager:
         
         return len(self.pd_photo_info)
     
-    def apply_time_offset(self, offset_str: str, mode: str = 'all') -> int:
+    def apply_time_offset(self, offset_str: str, mode: str = 'all', gpx_manager=None) -> int:
         """
         Apply a time offset to photo times (updates new_time column)
         Always uses original EXIF capture time (or creation time if not available)
+        Also updates GPX matching and regenerates filenames
         Args:
             offset_str: Time offset in format '+HH:MM:SS' or '-HH:MM:SS'
             mode: 'all', 'tagged', or 'not_updated'
+            gpx_manager: GPXManager instance for re-matching photos
         Returns:
             Count of photos updated
         """
@@ -535,17 +593,32 @@ class PhotoManager:
             if original_time is not None and not pd.isna(original_time):
                 new_time = original_time + offset_delta
                 self.pd_photo_info.at[index, 'new_time'] = new_time
+                
+                # Re-match with GPX using new time
+                if gpx_manager:
+                    self.match_single_photo_with_gpx(index, gpx_manager, use_new_time=True)
+                
+                # Regenerate filename
+                new_name = self._generate_new_filename(index, self.filename_format)
+                self.pd_photo_info.at[index, 'new_name'] = new_name
+                
                 count += 1
+        
+        # Deduplicate filenames after updating all
+        if count > 0:
+            self._deduplicate_filenames()
         
         return count
     
-    def update_photo_metadata(self, index: int, new_time: str = None, new_title: str = None) -> bool:
+    def update_photo_metadata(self, index: int, new_time: str = None, new_title: str = None, gpx_manager=None) -> bool:
         """
         Update new_time and/or new_title for a specific photo
+        Also updates GPX matching and regenerates filename when time changes
         Args:
             index: Photo index
             new_time: ISO format datetime string or None to keep unchanged
             new_title: Title string or None to keep unchanged
+            gpx_manager: GPXManager instance for re-matching photos
         Returns:
             True if successful
         """
@@ -553,15 +626,18 @@ class PhotoManager:
             raise ValueError("Invalid photo index")
         
         title_changed = False
+        time_changed = False
         
         if new_time is not None:
             if new_time == "":  # Empty string means clear/set to None
                 self.pd_photo_info.at[index, 'new_time'] = None
+                time_changed = True
             else:
-                # Parse ISO format datetime
+                # Parse datetime string directly (format: YYYY-MM-DD HH:MM:SS)
                 try:
-                    dt = datetime.fromisoformat(new_time.replace('Z', '+00:00'))
+                    dt = datetime.strptime(new_time, '%Y-%m-%d %H:%M:%S')
                     self.pd_photo_info.at[index, 'new_time'] = dt
+                    time_changed = True
                 except:
                     raise ValueError("Invalid datetime format")
         
@@ -570,8 +646,12 @@ class PhotoManager:
             self.pd_photo_info.at[index, 'new_title'] = new_title
             title_changed = True
         
-        # Regenerate filename if title changed and format includes {title}
-        if title_changed and '{title}' in self.filename_format:
+        # Re-match with GPX if time changed
+        if time_changed and gpx_manager:
+            self.match_single_photo_with_gpx(index, gpx_manager, use_new_time=True)
+        
+        # Regenerate filename if time or title changed
+        if time_changed or (title_changed and '{title}' in self.filename_format):
             new_name = self._generate_new_filename(index, self.filename_format)
             self.pd_photo_info.at[index, 'new_name'] = new_name
             # Note: We don't call _deduplicate_filenames() here as it's a single photo
@@ -648,11 +728,14 @@ class PhotoManager:
     def _generate_new_filename_from_info(self, info: Dict[str, Any]) -> str:
         """
         Generate new filename from photo info dict (used during scanning)
-        Uses EXIF capture time if available, otherwise file creation time
+        Uses new_time if set, otherwise EXIF capture time, otherwise file creation time
         Supports {title} placeholder for photo title
         """
-        # Get the timestamp to use
-        capture_time = info['exif_capture_time']
+        # Get the timestamp to use - prioritize new_time
+        capture_time = info.get('new_time')
+        
+        if capture_time is None or pd.isna(capture_time):
+            capture_time = info['exif_capture_time']
         
         if capture_time is None or pd.isna(capture_time):
             # Fall back to creation time
@@ -691,11 +774,14 @@ class PhotoManager:
     def _generate_new_filename(self, index: int, format_str: str) -> str:
         """
         Generate new filename for a photo based on format string
-        Uses EXIF capture time if available, otherwise file creation time
+        Uses new_time if set, otherwise EXIF capture time, otherwise file creation time
         Supports {title} placeholder for photo title
         """
-        # Get the timestamp to use
-        capture_time = self.pd_photo_info.at[index, 'exif_capture_time']
+        # Get the timestamp to use - prioritize new_time
+        capture_time = self.pd_photo_info.at[index, 'new_time']
+        
+        if capture_time is None or pd.isna(capture_time):
+            capture_time = self.pd_photo_info.at[index, 'exif_capture_time']
         
         if capture_time is None or pd.isna(capture_time):
             # Fall back to creation time

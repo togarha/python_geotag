@@ -533,7 +533,7 @@ async def apply_time_offset(request: TimeOffsetRequest):
         if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
             return {"success": False, "detail": "No photos loaded"}
         
-        count = photo_manager.apply_time_offset(request.offset, request.mode)
+        count = photo_manager.apply_time_offset(request.offset, request.mode, gpx_manager)
         return {"success": True, "count": count}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -547,7 +547,7 @@ async def update_photo_metadata(index: int, request: PhotoMetadataUpdate):
         if photo_manager.pd_photo_info is None or index >= len(photo_manager.pd_photo_info):
             return {"success": False, "detail": "Invalid photo index"}
         
-        photo_manager.update_photo_metadata(index, request.new_time, request.new_title)
+        photo_manager.update_photo_metadata(index, request.new_time, request.new_title, gpx_manager)
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

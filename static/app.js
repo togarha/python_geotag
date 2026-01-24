@@ -870,12 +870,18 @@ function initializeSettingsView() {
     const applyTitleBtn = document.getElementById('apply-title');
     const applyTitleTaggedBtn = document.getElementById('apply-title-tagged');
     const clearTitleBtn = document.getElementById('clear-title');
+    const applyTimeOffsetAllBtn = document.getElementById('apply-time-offset-all');
+    const applyTimeOffsetTaggedBtn = document.getElementById('apply-time-offset-tagged');
+    const applyTimeOffsetNotUpdatedBtn = document.getElementById('apply-time-offset-not-updated');
     
     applyFormatBtn.addEventListener('click', applyFilenameFormat);
     previewNamesBtn.addEventListener('click', previewFilenameFormat);
     applyTitleBtn.addEventListener('click', applyPhotoTitle);
     applyTitleTaggedBtn.addEventListener('click', applyPhotoTitleTagged);
     clearTitleBtn.addEventListener('click', clearPhotoTitles);
+    applyTimeOffsetAllBtn.addEventListener('click', applyTimeOffsetAll);
+    applyTimeOffsetTaggedBtn.addEventListener('click', applyTimeOffsetTagged);
+    applyTimeOffsetNotUpdatedBtn.addEventListener('click', applyTimeOffsetNotUpdated);
     
     // Load current format from backend
     loadFilenameFormat();
@@ -1057,6 +1063,135 @@ async function clearPhotoTitles() {
     } catch (error) {
         console.error('Error clearing titles:', error);
         alert('Error clearing titles: ' + error.message);
+    }
+}
+
+async function applyTimeOffsetAll() {
+    const offset = document.getElementById('time-offset').value.trim();
+    
+    if (!offset) {
+        alert('Please enter a time offset (e.g., +01:30:00 or -00:15:30).');
+        return;
+    }
+    
+    // Validate format: +/-HH:MM:SS
+    const regex = /^([+-])(\d{2}):(\d{2}):(\d{2})$/;
+    if (!offset.match(regex)) {
+        alert('Invalid format. Please use ±HH:MM:SS (e.g., +01:30:00 or -00:15:30).');
+        return;
+    }
+    
+    if (!confirm(`This will apply time offset "${offset}" to all photos. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-time-offset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offset, mode: 'all' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully applied time offset to ${result.count} photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying time offset: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying time offset:', error);
+        alert('Error applying time offset: ' + error.message);
+    }
+}
+
+async function applyTimeOffsetTagged() {
+    const offset = document.getElementById('time-offset').value.trim();
+    
+    if (!offset) {
+        alert('Please enter a time offset (e.g., +01:30:00 or -00:15:30).');
+        return;
+    }
+    
+    // Validate format: +/-HH:MM:SS
+    const regex = /^([+-])(\d{2}):(\d{2}):(\d{2})$/;
+    if (!offset.match(regex)) {
+        alert('Invalid format. Please use ±HH:MM:SS (e.g., +01:30:00 or -00:15:30).');
+        return;
+    }
+    
+    if (!confirm(`This will apply time offset "${offset}" to tagged photos only. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-time-offset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offset, mode: 'tagged' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully applied time offset to ${result.count} tagged photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying time offset: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying time offset:', error);
+        alert('Error applying time offset: ' + error.message);
+    }
+}
+
+async function applyTimeOffsetNotUpdated() {
+    const offset = document.getElementById('time-offset').value.trim();
+    
+    if (!offset) {
+        alert('Please enter a time offset (e.g., +01:30:00 or -00:15:30).');
+        return;
+    }
+    
+    // Validate format: +/-HH:MM:SS
+    const regex = /^([+-])(\d{2}):(\d{2}):(\d{2})$/;
+    if (!offset.match(regex)) {
+        alert('Invalid format. Please use ±HH:MM:SS (e.g., +01:30:00 or -00:15:30).');
+        return;
+    }
+    
+    if (!confirm(`This will apply time offset "${offset}" to photos without new_time set. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-time-offset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offset, mode: 'not_updated' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully applied time offset to ${result.count} not-updated photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying time offset: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying time offset:', error);
+        alert('Error applying time offset: ' + error.message);
     }
 }
 

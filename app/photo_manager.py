@@ -483,6 +483,62 @@ class PhotoManager:
         
         return len(self.pd_photo_info)
     
+    def apply_time_offset(self, offset_str: str, mode: str = 'all') -> int:
+        """
+        Apply a time offset to photo times (updates new_time column)
+        Always uses original EXIF capture time (or creation time if not available)
+        Args:
+            offset_str: Time offset in format '+HH:MM:SS' or '-HH:MM:SS'
+            mode: 'all', 'tagged', or 'not_updated'
+        Returns:
+            Count of photos updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        # Parse offset string
+        import re
+        from datetime import timedelta
+        
+        match = re.match(r'^([+-])(\d{2}):(\d{2}):(\d{2})$', offset_str)
+        if not match:
+            raise ValueError('Invalid offset format. Use ±HH:MM:SS')
+        
+        sign = match.group(1)
+        hours = int(match.group(2))
+        minutes = int(match.group(3))
+        seconds = int(match.group(4))
+        
+        # Calculate total offset in seconds
+        offset_seconds = hours * 3600 + minutes * 60 + seconds
+        if sign == '-':
+            offset_seconds = -offset_seconds
+        
+        offset_delta = timedelta(seconds=offset_seconds)
+        
+        count = 0
+        for index in range(len(self.pd_photo_info)):
+            # Apply filtering based on mode
+            if mode == 'tagged' and not self.pd_photo_info.at[index, 'tagged']:
+                continue
+            if mode == 'not_updated':
+                existing_new_time = self.pd_photo_info.at[index, 'new_time']
+                if existing_new_time is not None and not pd.isna(existing_new_time):
+                    continue
+            
+            # Always use original EXIF time (or creation time as fallback)
+            original_time = self.pd_photo_info.at[index, 'exif_capture_time']
+            if original_time is None or pd.isna(original_time):
+                original_time = self.pd_photo_info.at[index, 'creation_time']
+            
+            # Apply offset if time exists
+            if original_time is not None and not pd.isna(original_time):
+                new_time = original_time + offset_delta
+                self.pd_photo_info.at[index, 'new_time'] = new_time
+                count += 1
+        
+        return count
+    
     def update_photo_metadata(self, index: int, new_time: str = None, new_title: str = None) -> bool:
         """
         Update new_time and/or new_title for a specific photo

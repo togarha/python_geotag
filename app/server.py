@@ -63,6 +63,10 @@ class PhotoMetadataUpdate(BaseModel):
     new_time: Optional[str] = None
     new_title: Optional[str] = None
 
+class TimeOffsetRequest(BaseModel):
+    offset: str
+    mode: str = 'all'  # 'all', 'tagged', or 'not_updated'
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -516,6 +520,20 @@ async def apply_photo_title_tagged(request: PhotoTitleRequest):
             return {"success": False, "detail": "No photos loaded"}
         
         count = photo_manager.apply_photo_title_tagged(request.title)
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/apply-time-offset")
+async def apply_time_offset(request: TimeOffsetRequest):
+    """
+    Apply a time offset to all, tagged, or not-updated photos
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.apply_time_offset(request.offset, request.mode)
         return {"success": True, "count": count}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

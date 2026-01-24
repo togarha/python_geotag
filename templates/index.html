@@ -183,6 +183,18 @@
                     </div>
                     <p class="help-text">This will set the new_title field for all photos in the current folder.</p>
                 </div>
+                
+                <div class="settings-section">
+                    <h3>Time Adjustment</h3>
+                    <div class="setting-item">
+                        <label for="time-offset">Time Offset (±HH:MM:SS):</label>
+                        <input type="text" id="time-offset" placeholder="+00:00:00 or -01:30:00" class="format-input">
+                        <button id="apply-time-offset-all" class="btn btn-primary">Apply to All</button>
+                        <button id="apply-time-offset-tagged" class="btn btn-success">Apply to Tagged</button>
+                        <button id="apply-time-offset-not-updated" class="btn btn-secondary">Apply to Not Updated</button>
+                    </div>
+                    <p class="help-text">Apply a time offset to EXIF capture times. Format: +HH:MM:SS or -HH:MM:SS (e.g., +01:30:00 adds 1h 30m, -00:15:30 subtracts 15m 30s). Offset is always applied to the original EXIF time.</p>
+                </div>
             </div>
         </div>
 

@@ -18,7 +18,7 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 - **Title Management**: Extract and edit ImageDescription from EXIF metadata
 
 ### 🗺️ GPS & Geotagging
-- **Dual Map Providers**: Switch between OpenStreetMap and Google Maps
+- **Triple Map Providers**: Switch between OpenStreetMap, ESRI World Imagery (Satellite), and Google Maps
 - **EXIF GPS Extraction**: Automatically reads GPS coordinates and altitude from photo metadata (supports Fraction objects on Mac)
 - **GPX Track Integration**: Load multiple GPX files with smart duplicate detection and elevation data
 - **Time Offset System**: Compensate timezone differences between GPX (UTC) and camera times
@@ -77,14 +77,30 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 - **Responsive Design**: Works on desktop and mobile
 - **Modern UI**: Clean, intuitive interface with smooth animations
 - **Four Main Views**:
-  1. Photo Thumbnails View (with dual map provider)
-  2. GPX View (with dual map provider and time offset controls)
+  1. Photo Thumbnails View (with triple map provider support)
+  2. GPX View (with triple map provider support and time offset controls)
   3. Positions View (YAML file management)
-  4. Settings View (photo renaming and metadata configuration)
-  5. Large Photo View (modal with dual map provider and metadata editing)
+  4. Settings View (photo renaming, metadata configuration, and map/elevation provider selection)
+  5. Large Photo View (modal with triple map provider and metadata editing)
 - **Clean Checkboxes**: Tag checkboxes without distracting labels
 - **Emoji Markers**: Proper UTF-8 emoji support (🔴 🔵 🟡 🟢) in legend
 - **Styled Modals**: Beautiful position selection and metadata editing with hover effects
+
+### ⚙️ Configuration Management
+- **YAML Configuration Files**: Store all application settings in YAML format
+- **Command-line Config Loading**: Start server with `--config` or `-c` flag to load config file
+- **Auto-save Toggle**: Choose to automatically save settings changes or save manually
+- **Manual Save/Download**: Save config to current file or download as new file
+- **Configurable Settings**:
+  - Map provider (osm, esri, google)
+  - Elevation service (none, open-elevation, opentopo, google)
+  - Photo renaming format
+  - Include subfolders checkbox state
+  - Sort by preference
+  - Thumbnail size
+  - Folder path
+  - Auto-save configuration toggle
+- **Sample Configs**: Example configuration files in `test/resources/`
 
 ## Technology Stack
 
@@ -97,6 +113,7 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 - **Frontend**: Vanilla JavaScript, HTML5, CSS3
 - **Maps**: 
   - OpenStreetMap via Leaflet 1.9.4
+  - ESRI World Imagery (Satellite) via Leaflet 1.9.4
   - Google Maps JavaScript API
 - **Package Manager**: uv (fast Python package manager)
 
@@ -132,6 +149,7 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
    
    **Map Providers**:
    - **OpenStreetMap (Default)**: No API key required - works out of the box!
+   - **ESRI World Imagery (Satellite)**: Free satellite imagery - no API key required!
    - **Google Maps (Optional)**:
      - Go to [Google Cloud Console](https://console.cloud.google.com/)
      - Create a new project or select an existing one
@@ -144,6 +162,7 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
        ```
    
    **Elevation Services**:
+   - **None**: Disable automatic elevation fetching
    - **Open-Elevation**: Free, no API key required (default)
    - **OpenTopoData**: Free, no API key required, uses SRTM 90m dataset
    - **Google Maps Elevation API**: Requires API key (same as Maps API)
@@ -151,17 +170,59 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 ## Running the Application
 
 ### Start the server:
+
+**Basic usage**:
 ```powershell
 uv run python main.py
 ```
 
-The server will start at `http://127.0.0.1:8000`
+**With configuration file**:
+```powershell
+uv run python main.py --config path/to/config.yaml
+# or
+uv run python main.py -c path/to/config.yaml
+```
+
+**With custom host and port**:
+```powershell
+uv run python main.py --host 0.0.0.0 --port 8080
+```
+
+**All options combined**:
+```powershell
+uv run python main.py -c config.yaml --host 0.0.0.0 --port 8080
+```
+
+The server will start at `http://127.0.0.1:8000` by default
 
 ### Access the application:
 Open your web browser and navigate to:
 ```
 http://127.0.0.1:8000
 ```
+
+### Configuration Files
+
+Configuration files use YAML format and can store all application settings:
+
+```yaml
+# Example config.yaml
+map_provider: esri                    # osm, esri, or google
+elevation_service: open-elevation     # none, open-elevation, opentopo, or google
+filename_format: "%Y%m%d_%H%M%S"     # Python strftime format
+include_subfolders: true              # Recursive folder scanning
+sort_by: capture_time                 # capture_time or name
+thumbnail_size: 200                   # 100-400 pixels
+folder_path: "C:/Photos"             # Last used folder path
+auto_save_config: true               # Auto-save settings changes
+```
+
+**Sample configuration files** are available in `test/resources/`:
+- `config_default.yaml` - OpenStreetMap with Open-Elevation
+- `config_satellite.yaml` - ESRI satellite imagery
+- `config_google_maps.yaml` - Google Maps configuration example
+
+See `test/resources/README.md` for detailed configuration documentation.
 
 ## Usage Guide
 
@@ -176,8 +237,8 @@ http://127.0.0.1:8000
    - Select sort order (Capture Time or Name) - both grid and list update automatically
    - Choose filter (All Photos, Tagged Only, Untagged Only) - maintains correct photo indices
    - Adjust thumbnail size with the slider
-   - Choose map provider (OpenStreetMap or Google Maps)
-   - Select elevation service (Open-Elevation, OpenTopoData, or Google)
+   - Choose map provider (OpenStreetMap, ESRI World Imagery, or Google Maps)
+   - Select elevation service (None, Open-Elevation, OpenTopoData, or Google)
 
 3. **Interact with Photos**:
    - Single click: Select a photo
@@ -212,8 +273,9 @@ http://127.0.0.1:8000
    - Tracks update when offsets change or tracks are added/removed
 
 5. **Switch Map Provider**:
-   - Use the "Map:" dropdown to switch between OpenStreetMap and Google Maps
+   - Use the "Map:" dropdown to switch between OpenStreetMap, ESRI World Imagery, and Google Maps
    - Tracks are redrawn automatically on the new map
+   - Map provider selection syncs with Settings view
 
 ### Positions View
 
@@ -248,7 +310,19 @@ http://127.0.0.1:8000
 
 ### Settings View
 
-1. **Photo Renaming**:
+1. **Map & Elevation Provider Configuration**:
+   - **Map Provider**: Choose between OpenStreetMap, ESRI World Imagery (Satellite), or Google Maps
+   - **Elevation Service**: Select None, Open-Elevation, OpenTopoData (SRTM), or Google
+   - Changes sync with map provider selectors in Photo and GPX views
+
+2. **Configuration File Management**:
+   - **Auto-save Config**: Toggle to automatically save settings changes
+   - **Current Config File**: Shows which config file is loaded (if any)
+   - **Save Config**: Manually save settings to current config file
+   - **Download Config As**: Download current settings as a new YAML file
+   - All settings are persisted: map provider, elevation service, filename format, folder preferences
+
+3. **Photo Renaming**:
    - Configure filename format using Python strftime codes
    - Default format: `%Y%m%d_%H%M%S` (e.g., `20260123_143052.jpg`)
    - Available format codes:
@@ -267,7 +341,7 @@ http://127.0.0.1:8000
      - Example: `20260123_143052.jpg`, `20260123_143052a.jpg`, `20260123_143052b.jpg`
      - Case-insensitive comparison for Windows compatibility
 
-2. **Photo Title Management**:
+4. **Photo Title Management**:
    - Set title for all photos at once
    - Set title for tagged photos only
    - Clear all titles
@@ -275,7 +349,7 @@ http://127.0.0.1:8000
    - Uses ImageDescription EXIF field (cross-platform standard)
    - Fallback support for Windows XPTitle and XPComment tags
 
-3. **Format Help**:
+5. **Format Help**:
    - Collapsible help section with format codes and examples
    - Click to expand/collapse
 
@@ -307,9 +381,10 @@ http://127.0.0.1:8000
      - **(blank)**: Intentionally cleared (new_title is empty string)
      - **value**: Custom title set
 
-4. **Map Provider Selection**:
-   - Use the "Map:" dropdown to switch between OpenStreetMap and Google Maps
+3. **Map Provider Selection**:
+   - Use the "Map:" dropdown to switch between OpenStreetMap, ESRI World Imagery, and Google Maps
    - Current zoom and center position are maintained
+   - Provider selection syncs with Settings and GPX views
 
 4. **Coordinate Legend**:
    - 🔴 EXIF: GPS coordinates and altitude from camera
@@ -450,6 +525,13 @@ Stores GPX track point information with time offset support:
 ### Elevation Services
 - `POST /api/elevation` - Fetch elevation for coordinates from selected service
 
+### Settings & Configuration
+- `GET /api/settings` - Get all application settings
+- `POST /api/settings` - Update settings (conditionally saves based on auto_save_config)
+- `POST /api/config/save` - Manually save current settings to config file
+- `GET /api/config/download` - Download current settings as YAML file
+- `GET /api/config/info` - Get current config file information
+
 ## Project Structure
 
 ```
@@ -460,7 +542,8 @@ geotag/
 │   ├── photo_manager.py     # Photo scanning and EXIF extraction with altitude
 │   ├── gpx_manager.py       # GPX file parsing and matching with elevation
 │   ├── positions_manager.py # YAML positions parsing and management
-│   └── elevation_service.py # Elevation API integration (3 services)
+│   ├── elevation_service.py # Elevation API integration (3 services)
+│   └── config_manager.py    # Configuration file management (YAML)
 ├── static/
 │   ├── styles.css           # Application styling with modal designs
 │   └── app.js               # Frontend JavaScript with elevation and positions
@@ -468,10 +551,14 @@ geotag/
 │   └── index.html           # Main HTML template with all views
 ├── test/
 │   └── resources/
-│       ├── sample_positions.yaml   # Comprehensive test positions
-│       └── minimal_positions.yaml  # Quick test positions
+│       ├── config_default.yaml       # Default OpenStreetMap config
+│       ├── config_satellite.yaml     # ESRI satellite imagery config
+│       ├── config_google_maps.yaml   # Google Maps config example
+│       ├── sample_positions.yaml     # Comprehensive test positions
+│       ├── minimal_positions.yaml    # Quick test positions
+│       └── README.md                 # Configuration documentation
 ├── pyproject.toml           # Project dependencies
-├── main.py                  # Application entry point
+├── main.py                  # Application entry point with argparse
 ├── example_positions.yaml   # Example position file
 └── README.md                # This file
 ```
@@ -517,11 +604,13 @@ geotag/
 
 ### Map not displaying
 - **OpenStreetMap**: Should work without any configuration
+- **ESRI World Imagery**: Free satellite imagery, should work without any configuration
 - **Google Maps**: 
   - Verify API key is correctly set in `templates\index.html`
   - Check that Maps JavaScript API is enabled in Google Cloud Console
   - Ensure API key has no restrictions blocking localhost
-- Try switching to the other map provider using the dropdown
+- Try switching to another map provider using the dropdown
+- If switching providers shows grey areas, navigate away and back to the view to refresh
 
 ### Server errors
 - Check Python version (3.11+ required)
@@ -561,6 +650,34 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [x] ~~Photo metadata editing~~ ✅ Implemented in v1.3
 
 ## Recent Updates
+
+### Version 1.4 - Configuration Management & ESRI Satellite Imagery
+
+**Configuration File System**:
+- ✅ YAML-based configuration management with ConfigManager class
+- ✅ Command-line arguments: `--config` (or `-c`), `--host`, `--port`
+- ✅ Auto-save toggle: Choose automatic or manual config saving
+- ✅ Manual save and download buttons in Settings view
+- ✅ Browser-native file download for "Save Config As"
+- ✅ All settings persisted: map_provider, elevation_service, filename_format, include_subfolders, sort_by, thumbnail_size, folder_path, auto_save_config
+- ✅ Sample configuration files in `test/resources/`
+- ✅ Complete configuration documentation
+
+**ESRI World Imagery Support**:
+- ✅ Added ESRI World Imagery as third map provider option
+- ✅ Free satellite imagery via ArcGIS REST services
+- ✅ No API key required
+- ✅ Available in all views: Photo, GPX, and Large Photo View
+- ✅ Map provider selectors synchronized across views
+- ✅ Proper map initialization on visible containers only
+- ✅ Smooth provider switching without grey tile areas
+
+**Map Provider Synchronization**:
+- ✅ Settings view map provider syncs with GPX view selector
+- ✅ GPX view map provider syncs with Settings view selector
+- ✅ Both map instances (photo and GPX) cleared when provider changes
+- ✅ Maps only initialize when their containers are visible
+- ✅ Proper Leaflet size recalculation with invalidateSize()
 
 ### Version 1.3 - Photo Renaming & Metadata Editing
 
@@ -691,6 +808,8 @@ For issues, questions, or contributions, please refer to the project repository.
 
 ---
 
-**Note**: The application uses OpenStreetMap by default with free elevation services (Open-Elevation or OpenTopoData), requiring no API keys. Google Maps and Google Elevation API are available as optional alternatives - remember to keep your API key secure and never commit it to public repositories if you choose to use them!
+**Note**: The application now supports three map providers: OpenStreetMap (default), ESRI World Imagery (free satellite), and Google Maps (requires API key). Two of three providers require no configuration! Free elevation services (Open-Elevation, OpenTopoData) are available, with an option to disable elevation fetching entirely. All settings can be saved to YAML configuration files and loaded automatically on startup.
 
-**Example Files**: Check `test/resources/` for sample YAML position files to get started with predefined positions.
+**Example Files**: 
+- Check `test/resources/` for sample YAML position files to get started with predefined positions
+- Check `test/resources/` for sample configuration files (default, satellite, and Google Maps examples)

@@ -284,11 +284,12 @@
                 </div>
                 <div class="form-group">
                     <label for="edit-photo-time-input">Photo Date/Time:</label>
+                    <div id="current-time-display" class="current-value-display"></div>
                     <div class="form-group-inline">
-                        <input type="datetime-local" id="edit-photo-time-input" class="form-control" step="1">
+                        <input type="text" id="edit-photo-time-input" class="form-control" placeholder="YYYY-MM-DD HH:MM:SS">
                         <button id="apply-time-btn" class="btn btn-primary btn-inline">Apply</button>
                     </div>
-                    <small class="form-help">Clear to remove custom time</small>
+                    <small class="form-help">Format: YYYY-MM-DD HH:MM:SS (e.g., 2026-01-21 23:24:50). Clear to remove custom time</small>
                 </div>
                 <div class="modal-actions">
                     <button id="close-metadata-modal-btn" class="btn btn-secondary">Close</button>

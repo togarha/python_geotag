@@ -1225,14 +1225,51 @@ function displayEXIFInfo(photo) {
         return coords;
     };
     
-    // Format date/time
+    // Format date/time to YYYY-MM-DD HH:MM:SS
     const formatDateTime = (dt) => {
         if (!dt || dt === 'N/A') return 'N/A';
         try {
             const date = new Date(dt);
-            return date.toLocaleString();
+            if (isNaN(date.getTime())) return 'N/A';
+            
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         } catch {
             return dt;
+        }
+    };
+    
+    // Calculate and format time difference
+    const formatTimeDiff = (currentDt, newDt) => {
+        if (!currentDt || !newDt || currentDt === 'N/A' || newDt === 'N/A') return '';
+        try {
+            const currentDate = new Date(currentDt);
+            const newDate = new Date(newDt);
+            
+            if (isNaN(currentDate.getTime()) || isNaN(newDate.getTime())) return '';
+            
+            // Calculate difference in seconds
+            const diffMs = newDate - currentDate;
+            const diffSeconds = Math.floor(Math.abs(diffMs) / 1000);
+            
+            const hours = Math.floor(diffSeconds / 3600);
+            const minutes = Math.floor((diffSeconds % 3600) / 60);
+            const seconds = diffSeconds % 60;
+            
+            const sign = diffMs >= 0 ? '+' : '-';
+            const hoursStr = String(hours).padStart(2, '0');
+            const minutesStr = String(minutes).padStart(2, '0');
+            const secondsStr = String(seconds).padStart(2, '0');
+            
+            return ` (${sign}${hoursStr}:${minutesStr}:${secondsStr})`;
+        } catch {
+            return '';
         }
     };
     
@@ -1255,7 +1292,7 @@ function displayEXIFInfo(photo) {
         {
             label: 'EXIF Capture Time',
             current: formatDateTime(photo.exif_capture_time),
-            new: formatDateTime(photo.new_time)
+            new: formatDateTime(photo.new_time) + formatTimeDiff(photo.exif_capture_time, photo.new_time)
         },
         {
             label: 'EXIF Position',
@@ -2035,15 +2072,32 @@ async function editPhotoMetadata() {
     const currentTime = photo.new_time || photo.exif_capture_time;
     const currentTitle = photo.new_title || photo.exif_image_title || '';
     
-    // Format datetime for input (datetime-local expects YYYY-MM-DDTHH:MM:SS format)
+    // Display current time in YYYY-MM-DD HH:MM:SS format
+    let displayTime = '';
+    if (currentTime) {
+        try {
+            const dt = new Date(currentTime);
+            const year = dt.getFullYear();
+            const month = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            const hours = String(dt.getHours()).padStart(2, '0');
+            const minutes = String(dt.getMinutes()).padStart(2, '0');
+            const seconds = String(dt.getSeconds()).padStart(2, '0');
+            displayTime = `Current: ${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        } catch (e) {
+            console.error('Error formatting display time:', e);
+        }
+    }
+    
+    // Format datetime for input (YYYY-MM-DD HH:MM:SS format)
     let formattedTime = '';
     if (currentTime) {
         try {
             const dt = new Date(currentTime);
-            // Format as YYYY-MM-DDTHH:MM:SS
+            // Format as YYYY-MM-DD HH:MM:SS
             formattedTime = dt.getFullYear() + '-' + 
                 String(dt.getMonth() + 1).padStart(2, '0') + '-' +
-                String(dt.getDate()).padStart(2, '0') + 'T' +
+                String(dt.getDate()).padStart(2, '0') + ' ' +
                 String(dt.getHours()).padStart(2, '0') + ':' +
                 String(dt.getMinutes()).padStart(2, '0') + ':' +
                 String(dt.getSeconds()).padStart(2, '0');
@@ -2053,6 +2107,7 @@ async function editPhotoMetadata() {
     }
     
     // Set values in modal
+    document.getElementById('current-time-display').textContent = displayTime;
     document.getElementById('edit-photo-title-input').value = currentTitle;
     document.getElementById('edit-photo-time-input').value = formattedTime;
     
@@ -2117,8 +2172,13 @@ async function applyTitleChange() {
         if (result.success) {
             alert('Title updated successfully!');
             state.editingOriginalTitle = newTitle;
-            // Reload photos and refresh display
-            await loadPhotos();
+            
+            // Update the photo in state directly
+            if (state.photos[state.selectedPhotoIndex]) {
+                state.photos[state.selectedPhotoIndex].new_title = newTitle || null;
+            }
+            
+            // Refresh the display
             await displayLargePhoto(state.selectedPhotoIndex);
         } else {
             alert('Error updating title: ' + (result.detail || 'Unknown error'));
@@ -2130,11 +2190,19 @@ async function applyTitleChange() {
 }
 
 async function applyTimeChange() {
-    const newTimeValue = document.getElementById('edit-photo-time-input').value;
+    const newTimeValue = document.getElementById('edit-photo-time-input').value.trim();
     
-    // Format original time for comparison (with seconds)
-    const originalTimeFormatted = state.editingOriginalTime ? 
-        new Date(state.editingOriginalTime).toISOString().slice(0, 19) : '';
+    // Format original time for comparison (YYYY-MM-DD HH:MM:SS)
+    let originalTimeFormatted = '';
+    if (state.editingOriginalTime) {
+        const dt = new Date(state.editingOriginalTime);
+        originalTimeFormatted = dt.getFullYear() + '-' + 
+            String(dt.getMonth() + 1).padStart(2, '0') + '-' +
+            String(dt.getDate()).padStart(2, '0') + ' ' +
+            String(dt.getHours()).padStart(2, '0') + ':' +
+            String(dt.getMinutes()).padStart(2, '0') + ':' +
+            String(dt.getSeconds()).padStart(2, '0');
+    }
     
     // Only update if changed
     if (newTimeValue === originalTimeFormatted) {
@@ -2146,18 +2214,24 @@ async function applyTimeChange() {
     if (newTimeValue === '') {
         updateData.new_time = '';  // Clear time
     } else {
-        try {
-            const dt = new Date(newTimeValue);
-            if (!isNaN(dt.getTime())) {
-                updateData.new_time = dt.toISOString();
-            } else {
-                alert('Invalid time format');
-                return;
-            }
-        } catch (e) {
-            alert('Invalid time format');
+        // Parse YYYY-MM-DD HH:MM:SS format
+        const regex = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/;
+        const match = newTimeValue.match(regex);
+        
+        if (!match) {
+            alert('Invalid time format. Please use: YYYY-MM-DD HH:MM:SS\\nExample: 2026-01-21 23:24:50');
             return;
         }
+        
+        const [_, year, month, day, hours, minutes, seconds] = match;
+        const dt = new Date(year, month - 1, day, hours, minutes, seconds);
+        
+        if (isNaN(dt.getTime())) {
+            alert('Invalid date/time values');
+            return;
+        }
+        
+        updateData.new_time = dt.toISOString();
     }
     
     try {
@@ -2172,8 +2246,13 @@ async function applyTimeChange() {
         if (result.success) {
             alert('Time updated successfully!');
             state.editingOriginalTime = updateData.new_time ? new Date(updateData.new_time).toISOString() : null;
-            // Reload photos and refresh display
-            await loadPhotos();
+            
+            // Update the photo in state directly
+            if (state.photos[state.selectedPhotoIndex]) {
+                state.photos[state.selectedPhotoIndex].new_time = updateData.new_time || null;
+            }
+            
+            // Refresh the display
             await displayLargePhoto(state.selectedPhotoIndex);
         } else {
             alert('Error updating time: ' + (result.detail || 'Unknown error'));

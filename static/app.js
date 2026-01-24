@@ -7,9 +7,13 @@ const state = {
     currentView: 'thumbnails',
     currentFolder: '',
     photos: [],
+    filteredPhotos: [],
     gpxTracks: [],
     selectedPhotoIndex: null,
     filterType: 'all',
+    searchQuery: '',
+    dateFrom: null,
+    dateTo: null,
     sortBy: 'time',
     thumbnailSize: 200,
     mapProvider: 'osm', // 'osm' or 'google'
@@ -130,6 +134,14 @@ function initializeThumbnailsView() {
     const mapProviderSelect = document.getElementById('map-provider');
     const sortSelect = document.getElementById('sort-select');
     const filterSelect = document.getElementById('filter-select');
+    const searchInput = document.getElementById('search-input');
+    const dateRangeToggle = document.getElementById('date-range-toggle');
+    const dateRangeControls = document.getElementById('date-range-controls');
+    const dateFrom = document.getElementById('date-from');
+    const dateTo = document.getElementById('date-to');
+    const clearDateRange = document.getElementById('clear-date-range');
+    const tagAllVisibleBtn = document.getElementById('tag-all-visible');
+    const untagAllVisibleBtn = document.getElementById('untag-all-visible');
     const thumbnailSizeSlider = document.getElementById('thumbnail-size');
     const sizeValue = document.getElementById('size-value');
 
@@ -216,10 +228,70 @@ function initializeThumbnailsView() {
         saveSettings();
     });
 
-    // Filter select
+    // Filter select (combined tag and GPS filter)
     filterSelect.addEventListener('change', () => {
         state.filterType = filterSelect.value;
-        loadPhotos();
+        applyFilters();
+    });
+    
+    // Search input
+    searchInput.addEventListener('input', () => {
+        state.searchQuery = searchInput.value.trim().toLowerCase();
+        applyFilters();
+    });
+    
+    // Date range toggle
+    dateRangeToggle.addEventListener('click', () => {
+        const isVisible = dateRangeControls.style.display !== 'none';
+        dateRangeControls.style.display = isVisible ? 'none' : 'flex';
+    });
+    
+    // Date range inputs
+    dateFrom.addEventListener('change', () => {
+        state.dateFrom = dateFrom.value ? new Date(dateFrom.value) : null;
+        applyFilters();
+    });
+    
+    dateTo.addEventListener('change', () => {
+        state.dateTo = dateTo.value ? new Date(dateTo.value + 'T23:59:59') : null;
+        applyFilters();
+    });
+    
+    // Clear date range
+    clearDateRange.addEventListener('click', () => {
+        dateFrom.value = '';
+        dateTo.value = '';
+        state.dateFrom = null;
+        state.dateTo = null;
+        applyFilters();
+    });
+    
+    // Tag all visible button
+    tagAllVisibleBtn.addEventListener('click', async () => {
+        if (state.filteredPhotos.length === 0) {
+            alert('No photos to tag.');
+            return;
+        }
+        
+        if (!confirm(`Tag all ${state.filteredPhotos.length} visible photos?`)) {
+            return;
+        }
+        
+        await bulkTagPhotos(state.filteredPhotos.map(p => p.original_index), true);
+    });
+    
+    // Untag all visible button
+    untagAllVisibleBtn.addEventListener('click', async () => {
+        if (state.filteredPhotos.length === 0) {
+            alert('No photos to untag.');
+            return;
+        }
+        
+        if (!confirm(`Untag all ${state.filteredPhotos.length} visible photos?`)) {
+            return;
+        }
+        
+        await bulkTagPhotos(state.filteredPhotos.map(p => p.original_index), false);
     });
 
     // Thumbnail size slider
@@ -254,7 +326,7 @@ async function scanFolder(folderPath, recursive) {
             // Save folder path to settings
             saveSettings();
             
-            displayPhotos();
+            applyFilters();
         } else {
             alert('Error scanning folder: ' + result.detail);
         }
@@ -266,15 +338,120 @@ async function scanFolder(folderPath, recursive) {
 
 async function loadPhotos() {
     try {
-        const response = await fetch(`/api/photos?filter_type=${state.filterType}`);
+        // Fetch all photos (no backend filtering, we do it client-side)
+        const response = await fetch(`/api/photos?filter_type=all`);
         const result = await response.json();
         
         if (result.success) {
             state.photos = result.data;
-            displayPhotos();
+            applyFilters();
         }
     } catch (error) {
         console.error('Error loading photos:', error);
+    }
+}
+
+function applyFilters() {
+    // Start with all photos
+    let filtered = [...state.photos];
+    
+    // Apply combined tag and GPS filter
+    if (state.filterType && state.filterType !== 'all') {
+        filtered = filtered.filter(photo => {
+            const hasExif = photo.exif_latitude !== -360;
+            const hasGpx = photo.gpx_latitude !== -360;
+            const hasManual = photo.manual_latitude !== -360;
+            const hasFinal = photo.final_latitude !== -360;
+            const isTagged = photo.tagged;
+            
+            switch (state.filterType) {
+                // Tag filters
+                case 'tagged':
+                    return isTagged;
+                case 'untagged':
+                    return !isTagged;
+                
+                // GPS filters
+                case 'with-gps':
+                    return hasFinal;
+                case 'no-gps':
+                    return !hasFinal;
+                case 'with-exif':
+                    return hasExif;
+                case 'with-gpx':
+                    return hasGpx;
+                case 'with-manual':
+                    return hasManual;
+                
+                // Combined filters
+                case 'tagged-with-gps':
+                    return isTagged && hasFinal;
+                case 'tagged-no-gps':
+                    return isTagged && !hasFinal;
+                case 'untagged-with-gps':
+                    return !isTagged && hasFinal;
+                case 'untagged-no-gps':
+                    return !isTagged && !hasFinal;
+                
+                default:
+                    return true;
+            }
+        });
+    }
+    
+    // Apply search filter
+    if (state.searchQuery) {
+        filtered = filtered.filter(photo => {
+            return photo.filename.toLowerCase().includes(state.searchQuery);
+        });
+    }
+    
+    // Apply date range filter
+    if (state.dateFrom || state.dateTo) {
+        filtered = filtered.filter(photo => {
+            // Use exif_capture_time or creation_time for filtering
+            const photoDate = photo.exif_capture_time ? new Date(photo.exif_capture_time) : 
+                             photo.creation_time ? new Date(photo.creation_time) : null;
+            
+            if (!photoDate) return false;
+            
+            if (state.dateFrom && photoDate < state.dateFrom) return false;
+            if (state.dateTo && photoDate > state.dateTo) return false;
+            
+            return true;
+        });
+    }
+    
+    state.filteredPhotos = filtered;
+    displayPhotos();
+}
+
+async function bulkTagPhotos(indices, tagged) {
+    try {
+        const response = await fetch('/api/photos/bulk-tag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ indices, tagged })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update local state
+            indices.forEach(idx => {
+                const photo = state.photos.find(p => p.original_index === idx);
+                if (photo) {
+                    photo.tagged = tagged;
+                }
+            });
+            
+            // Reload photos to reflect changes
+            await loadPhotos();
+            alert(`Successfully tagged ${result.count} photos.`);
+        }
+    } catch (error) {
+        console.error('Error bulk tagging photos:', error);
+        alert('Error tagging photos.');
     }
 }
 
@@ -291,7 +468,7 @@ function displayPhotoList() {
     }
     photoList.innerHTML = '';
 
-    state.photos.forEach((photo, index) => {
+    state.filteredPhotos.forEach((photo, index) => {
         const item = document.createElement('div');
         item.className = 'photo-list-item';
         item.textContent = photo.filename;
@@ -312,7 +489,7 @@ function displayPhotoGrid() {
     }
     photoGrid.innerHTML = '';
 
-    state.photos.forEach((photo, index) => {
+    state.filteredPhotos.forEach((photo, index) => {
         const item = document.createElement('div');
         item.className = 'photo-grid-item';
         item.dataset.index = index;
@@ -399,11 +576,14 @@ async function togglePhotoTag(index, tagged) {
             body: JSON.stringify({ tagged })
         });
         
-        // Update local state
-        state.photos[index].tagged = tagged;
+        // Update local state - find by original_index
+        const photo = state.photos.find(p => p.original_index === index);
+        if (photo) {
+            photo.tagged = tagged;
+        }
         
         // Refresh the displays to show updated tag status
-        displayPhotos();
+        applyFilters();
     } catch (error) {
         console.error('Error toggling tag:', error);
     }
@@ -1549,8 +1729,8 @@ function closeLargePhotoView() {
 
 async function displayLargePhoto(index) {
     try {
-        // Get the photo from state to access original_index
-        const photo = state.photos[index];
+        // Get the photo from filtered state to access original_index
+        const photo = state.filteredPhotos[index];
         const photoIndex = photo.original_index !== undefined ? photo.original_index : index;
         
         // Fetch photo details (includes GPX matching)
@@ -1571,7 +1751,7 @@ async function displayLargePhoto(index) {
         
         // Update navigation buttons
         document.getElementById('prev-photo').disabled = (index === 0);
-        document.getElementById('next-photo').disabled = (index === state.photos.length - 1);
+        document.getElementById('next-photo').disabled = (index === state.filteredPhotos.length - 1);
         
         // Update copy from previous button (disabled if first photo)
         document.getElementById('copy-from-previous').disabled = (index === 0);

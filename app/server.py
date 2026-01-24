@@ -237,6 +237,22 @@ async def toggle_tag(index: int, request: TagUpdateRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+class BulkTagRequest(BaseModel):
+    indices: list[int]
+    tagged: bool
+
+
+@app.post("/api/photos/bulk-tag")
+async def bulk_tag(request: BulkTagRequest):
+    """Tag multiple photos at once"""
+    try:
+        for index in request.indices:
+            photo_manager.update_tag(index, request.tagged)
+        return {"success": True, "count": len(request.indices), "tagged": request.tagged}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/api/photos/{index}/manual-location")
 async def update_manual_location(index: int, request: LocationUpdateRequest):
     """Update manual GPS coordinates for a photo"""

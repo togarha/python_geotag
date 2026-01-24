@@ -56,12 +56,38 @@
                     </select>
                 </div>
                 <div class="control-group">
-                    <label for="filter-select">Show:</label>
+                    <label for="filter-select">Filter:</label>
                     <select id="filter-select">
                         <option value="all">All Photos</option>
                         <option value="tagged">Tagged Only</option>
                         <option value="untagged">Untagged Only</option>
+                        <option value="with-gps">With GPS</option>
+                        <option value="no-gps">Without GPS</option>
+                        <option value="tagged-with-gps">Tagged + With GPS</option>
+                        <option value="tagged-no-gps">Tagged + Without GPS</option>
+                        <option value="untagged-with-gps">Untagged + With GPS</option>
+                        <option value="untagged-no-gps">Untagged + Without GPS</option>
+                        <option value="with-exif">With EXIF GPS</option>
+                        <option value="with-gpx">With GPX</option>
+                        <option value="with-manual">With Manual GPS</option>
                     </select>
+                </div>
+                <div class="control-group">
+                    <label for="search-input">Search:</label>
+                    <input type="text" id="search-input" placeholder="Search filename..." style="width: 200px;">
+                </div>
+                <div class="control-group">
+                    <button id="date-range-toggle" class="btn btn-secondary" title="Filter by date range">📅</button>
+                </div>
+                <div class="control-group" id="date-range-controls" style="display: none;">
+                    <input type="date" id="date-from" title="From date">
+                    <span style="margin: 0 5px;">to</span>
+                    <input type="date" id="date-to" title="To date">
+                    <button id="clear-date-range" class="btn btn-secondary" title="Clear date filter" style="margin-left: 5px;">✖️</button>
+                </div>
+                <div class="control-group">
+                    <button id="tag-all-visible" class="btn btn-secondary" title="Tag all visible photos">🏷️</button>
+                    <button id="untag-all-visible" class="btn btn-secondary" title="Untag all visible photos">🚫</button>
                 </div>
                 <div class="control-group">
                     <label for="thumbnail-size">Thumbnail Size:</label>

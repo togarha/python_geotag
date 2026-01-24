@@ -16,6 +16,7 @@ from .photo_manager import PhotoManager
 from .gpx_manager import GPXManager
 from .elevation_service import ElevationService
 from .positions_manager import PositionsManager
+from .config_manager import ConfigManager
 
 app = FastAPI(title="Geotag Application")
 
@@ -70,6 +71,15 @@ class TimeOffsetRequest(BaseModel):
 class SettingsUpdate(BaseModel):
     map_provider: Optional[str] = None
     elevation_service: Optional[str] = None
+    filename_format: Optional[str] = None
+    include_subfolders: Optional[bool] = None
+    sort_by: Optional[str] = None
+    thumbnail_size: Optional[int] = None
+    folder_path: Optional[str] = None
+    auto_save_config: Optional[bool] = None
+
+class ConfigSaveAsRequest(BaseModel):
+    file_path: str
 
 # Add CORS middleware
 app.add_middleware(
@@ -86,11 +96,22 @@ gpx_manager = GPXManager()
 elevation_service = ElevationService()
 positions_manager = PositionsManager()
 
-# Application settings (can be persisted to config file in future)
-app_settings = {
-    "map_provider": "osm",  # 'osm' or 'google'
-    "elevation_service": "open-elevation"  # 'none', 'open-elevation', 'opentopodata', or 'google'
-}
+# Configuration manager (initialized from main.py)
+config_manager: ConfigManager = ConfigManager()
+
+def set_config_manager(cm: ConfigManager):
+    """Set the config manager instance (called from main.py)"""
+    global config_manager
+    config_manager = cm
+    
+    # Apply initial settings from config to photo_manager
+    filename_format = config_manager.get('filename_format')
+    if filename_format:
+        photo_manager.set_filename_format(filename_format)
+    
+    sort_by = config_manager.get('sort_by')
+    if sort_by:
+        photo_manager.sort_by = sort_by
 
 # Serve static files
 static_path = Path(__file__).parent.parent / "static"
@@ -567,21 +588,110 @@ async def get_settings():
     """
     Get current application settings
     """
-    return app_settings
+    return config_manager.get_all()
 
 @app.post("/api/settings")
 async def update_settings(request: SettingsUpdate):
     """
-    Update application settings
+    Update application settings and persist to config file if auto_save is enabled
     """
     try:
+        updates = {}
+        
         if request.map_provider is not None:
-            app_settings["map_provider"] = request.map_provider
+            updates["map_provider"] = request.map_provider
         if request.elevation_service is not None:
-            app_settings["elevation_service"] = request.elevation_service
+            updates["elevation_service"] = request.elevation_service
+        if request.filename_format is not None:
+            updates["filename_format"] = request.filename_format
+            photo_manager.set_filename_format(request.filename_format)
+        if request.include_subfolders is not None:
+            updates["include_subfolders"] = request.include_subfolders
+        if request.sort_by is not None:
+            updates["sort_by"] = request.sort_by
+        if request.thumbnail_size is not None:
+            updates["thumbnail_size"] = request.thumbnail_size
+        if request.folder_path is not None:
+            updates["folder_path"] = request.folder_path
+        if request.auto_save_config is not None:
+            updates["auto_save_config"] = request.auto_save_config
         
-        # TODO: Persist settings to config file
+        # Update config
+        config_manager.update(updates)
         
-        return {"success": True, "settings": app_settings}
+        # Save to file if auto_save is enabled and config file is set
+        if config_manager.get('auto_save_config', True):
+            config_manager.save()
+        
+        return {"success": True, "settings": config_manager.get_all()}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/config/save")
+async def save_config():
+    """
+    Manually save configuration to current config file
+    """
+    try:
+        if not config_manager.config_file:
+            return {"success": False, "detail": "No config file specified"}
+        
+        success = config_manager.save()
+        return {
+            "success": success,
+            "file_path": str(config_manager.config_file) if success else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/config/save-as")
+async def save_config_as(request: ConfigSaveAsRequest):
+    """
+    Save configuration to a new file
+    """
+    try:
+        success = config_manager.save_as(request.file_path)
+        return {
+            "success": success,
+            "file_path": str(config_manager.config_file) if success else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/config/download")
+async def download_config():
+    """
+    Download current configuration as YAML file
+    """
+    try:
+        import yaml
+        from io import BytesIO
+        
+        # Get current config
+        config_data = config_manager.get_all()
+        
+        # Convert to YAML
+        yaml_content = yaml.dump(config_data, default_flow_style=False, sort_keys=False)
+        
+        # Return as downloadable file
+        return Response(
+            content=yaml_content,
+            media_type="application/x-yaml",
+            headers={
+                "Content-Disposition": "attachment; filename=config.yaml"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/config/info")
+async def get_config_info():
+    """
+    Get information about the current config file
+    """
+    return {
+        "has_config_file": config_manager.config_file is not None,
+        "config_file_path": str(config_manager.config_file) if config_manager.config_file else None,
+        "auto_save_enabled": config_manager.get('auto_save_config', True)
+    }
+

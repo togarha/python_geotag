@@ -202,6 +202,24 @@
                     </div>
                     <p class="help-text">Select "None" for Elevation API to disable automatic elevation fetching.</p>
                 </div>
+                
+                <div class="settings-section">
+                    <h3>Configuration File</h3>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="auto-save-config">
+                            Auto-save configuration on changes
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label>Current config file: <span id="config-file-path">None</span></label>
+                    </div>
+                    <div class="setting-item">
+                        <button id="save-config" class="btn btn-primary" disabled>💾 Save Config</button>
+                        <button id="save-config-as" class="btn btn-secondary">💾 Download Config As...</button>
+                    </div>
+                    <p class="help-text">When auto-save is enabled, changes are immediately saved to the config file. Otherwise, use the Save Config button to manually save.</p>
+                </div>
             </div>
         </div>
 

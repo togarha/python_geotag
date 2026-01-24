@@ -663,6 +663,10 @@ class PhotoManager:
         """Get the current filename format"""
         return self.filename_format
     
+    def set_filename_format(self, format_str: str):
+        """Set the filename format"""
+        self.filename_format = format_str
+    
     def _deduplicate_filenames(self):
         """
         Handle duplicate filenames by appending letters (a, b, c, etc.)

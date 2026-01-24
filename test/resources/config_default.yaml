@@ -1,0 +1,8 @@
+map_provider: osm
+elevation_service: open-elevation
+filename_format: '%Y%m%d_%H%M%S_{title}'
+include_subfolders: true
+sort_by: time
+thumbnail_size: 200
+folder_path: C:\devel\geotag\test\resources
+auto_save_config: false

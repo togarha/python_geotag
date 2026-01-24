@@ -1,0 +1,8 @@
+map_provider: google
+elevation_service: open-elevation
+filename_format: '%Y-%m-%d_%H%M_{title}'
+include_subfolders: false
+sort_by: name
+thumbnail_size: 400
+folder_path: C:\devel\geotag\test\resources
+auto_save_config: true

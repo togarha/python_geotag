@@ -154,6 +154,7 @@ function initializeThumbnailsView() {
 
     // Recursive checkbox
     recursiveCheckbox.addEventListener('change', () => {
+        saveSettings();
         if (state.currentFolder) {
             scanFolder(state.currentFolder, recursiveCheckbox.checked);
         }
@@ -168,6 +169,7 @@ function initializeThumbnailsView() {
             body: JSON.stringify({ sort_by: state.sortBy })
         });
         await loadPhotos();
+        saveSettings();
     });
 
     // Filter select
@@ -181,6 +183,10 @@ function initializeThumbnailsView() {
         state.thumbnailSize = parseInt(e.target.value);
         sizeValue.textContent = `${state.thumbnailSize}px`;
         updateThumbnailSizes();
+    });
+    
+    thumbnailSizeSlider.addEventListener('change', () => {
+        saveSettings();
     });
 }
 
@@ -200,6 +206,9 @@ async function scanFolder(folderPath, recursive) {
             
             // Update window title
             document.getElementById('page-title').textContent = `Geotag - ${folderPath}`;
+            
+            // Save folder path to settings
+            saveSettings();
             
             displayPhotos();
         } else {
@@ -878,6 +887,9 @@ function initializeSettingsView() {
     const applyTimeOffsetNotUpdatedBtn = document.getElementById('apply-time-offset-not-updated');
     const mapProviderSelect = document.getElementById('map-provider');
     const elevationServiceSelect = document.getElementById('elevation-service');
+    const autoSaveConfigCheckbox = document.getElementById('auto-save-config');
+    const saveConfigBtn = document.getElementById('save-config');
+    const saveConfigAsBtn = document.getElementById('save-config-as');
     
     applyFormatBtn.addEventListener('click', applyFilenameFormat);
     previewNamesBtn.addEventListener('click', previewFilenameFormat);
@@ -891,9 +903,15 @@ function initializeSettingsView() {
     // Save settings when changed
     mapProviderSelect.addEventListener('change', saveSettings);
     elevationServiceSelect.addEventListener('change', saveSettings);
+    autoSaveConfigCheckbox.addEventListener('change', saveSettings);
     
-    // Load current format from backend
+    // Config file buttons
+    saveConfigBtn.addEventListener('click', saveConfigFile);
+    saveConfigAsBtn.addEventListener('click', saveConfigFileAs);
+    
+    // Load current format and config info from backend
     loadFilenameFormat();
+    loadConfigInfo();
 }
 
 async function loadSettings() {
@@ -904,13 +922,51 @@ async function loadSettings() {
         // Apply settings to UI
         const mapProviderSelect = document.getElementById('map-provider');
         const elevationServiceSelect = document.getElementById('elevation-service');
+        const filenameFormat = document.getElementById('filename-format');
+        const recursiveCheckbox = document.getElementById('recursive-checkbox');
+        const sortSelect = document.getElementById('sort-select');
+        const folderPathInput = document.getElementById('folder-path-input');
+        const thumbnailSizeSlider = document.getElementById('thumbnail-size');
+        const sizeValue = document.getElementById('size-value');
         
         if (mapProviderSelect && settings.map_provider) {
             mapProviderSelect.value = settings.map_provider;
+            state.mapProvider = settings.map_provider;
         }
         
         if (elevationServiceSelect && settings.elevation_service) {
             elevationServiceSelect.value = settings.elevation_service;
+        }
+        
+        if (filenameFormat && settings.filename_format) {
+            filenameFormat.value = settings.filename_format;
+        }
+        
+        if (recursiveCheckbox && settings.include_subfolders !== undefined) {
+            recursiveCheckbox.checked = settings.include_subfolders;
+        }
+        
+        if (sortSelect && settings.sort_by) {
+            sortSelect.value = settings.sort_by;
+            state.sortBy = settings.sort_by;
+        }
+        
+        if (folderPathInput && settings.folder_path) {
+            folderPathInput.value = settings.folder_path;
+        }
+        
+        if (thumbnailSizeSlider && settings.thumbnail_size) {
+            thumbnailSizeSlider.value = settings.thumbnail_size;
+            state.thumbnailSize = settings.thumbnail_size;
+            if (sizeValue) {
+                sizeValue.textContent = `${settings.thumbnail_size}px`;
+            }
+        }
+        
+        // Auto-save config checkbox
+        const autoSaveCheckbox = document.getElementById('auto-save-config');
+        if (autoSaveCheckbox && settings.auto_save_config !== undefined) {
+            autoSaveCheckbox.checked = settings.auto_save_config;
         }
     } catch (error) {
         console.error('Error loading settings:', error);
@@ -919,16 +975,21 @@ async function loadSettings() {
 
 async function saveSettings() {
     try {
-        const mapProvider = document.getElementById('map-provider').value;
-        const elevationService = document.getElementById('elevation-service').value;
+        const settings = {
+            map_provider: document.getElementById('map-provider').value,
+            elevation_service: document.getElementById('elevation-service').value,
+            filename_format: document.getElementById('filename-format').value,
+            include_subfolders: document.getElementById('recursive-checkbox').checked,
+            sort_by: document.getElementById('sort-select').value,
+            thumbnail_size: parseInt(document.getElementById('thumbnail-size').value),
+            folder_path: document.getElementById('folder-path-input').value,
+            auto_save_config: document.getElementById('auto-save-config').checked
+        };
         
         const response = await fetch('/api/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                map_provider: mapProvider,
-                elevation_service: elevationService
-            })
+            body: JSON.stringify(settings)
         });
         
         const result = await response.json();
@@ -938,6 +999,58 @@ async function saveSettings() {
         }
     } catch (error) {
         console.error('Error saving settings:', error);
+    }
+}
+
+async function loadConfigInfo() {
+    try {
+        const response = await fetch('/api/config/info');
+        const info = await response.json();
+        
+        const configFilePath = document.getElementById('config-file-path');
+        const saveConfigBtn = document.getElementById('save-config');
+        
+        if (info.has_config_file) {
+            configFilePath.textContent = info.config_file_path;
+            saveConfigBtn.disabled = false;
+        } else {
+            configFilePath.textContent = 'None';
+            saveConfigBtn.disabled = true;
+        }
+        
+        // Download button is always enabled (doesn't need config file)
+    } catch (error) {
+        console.error('Error loading config info:', error);
+    }
+}
+
+async function saveConfigFile() {
+    try {
+        const response = await fetch('/api/config/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Configuration saved to ${result.file_path}`);
+        } else {
+            alert(`Failed to save config: ${result.detail}`);
+        }
+    } catch (error) {
+        console.error('Error saving config file:', error);
+        alert('Error saving configuration file');
+    }
+}
+
+async function saveConfigFileAs() {
+    try {
+        // Trigger download - browser will show its native save dialog
+        window.location.href = '/api/config/download';
+    } catch (error) {
+        console.error('Error downloading config file:', error);
+        alert('Error downloading configuration file');
     }
 }
 
@@ -1006,6 +1119,8 @@ async function applyFilenameFormat() {
         
         if (result.success) {
             alert(`Successfully updated ${result.count} photo names.`);
+            // Save the format to settings
+            saveSettings();
             // Reload photos if in thumbnails view
             if (state.photos && state.photos.length > 0) {
                 await loadPhotos();

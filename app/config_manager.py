@@ -17,6 +17,7 @@ class ConfigManager:
         "sort_by": "time",  # 'time' or 'name'
         "thumbnail_size": 150,  # pixels
         "folder_path": "",
+        "export_folder": "",  # Export destination folder
         "auto_save_config": True  # Auto-save config file on changes
     }
     

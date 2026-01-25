@@ -6,3 +6,4 @@ sort_by: name
 thumbnail_size: 150
 folder_path: C:\devel\geotag\test\resources
 auto_save_config: false
+export_folder: C:\devel\geotag\test\output

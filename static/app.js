@@ -142,6 +142,8 @@ function initializeThumbnailsView() {
     const clearDateRange = document.getElementById('clear-date-range');
     const tagAllVisibleBtn = document.getElementById('tag-all-visible');
     const untagAllVisibleBtn = document.getElementById('untag-all-visible');
+    const exportAllBtn = document.getElementById('export-all');
+    const exportTaggedBtn = document.getElementById('export-tagged');
     const thumbnailSizeSlider = document.getElementById('thumbnail-size');
     const sizeValue = document.getElementById('size-value');
 
@@ -292,6 +294,28 @@ function initializeThumbnailsView() {
         }
         
         await bulkTagPhotos(state.filteredPhotos.map(p => p.original_index), false);
+    });
+    
+    // Export all button
+    exportAllBtn.addEventListener('click', async () => {
+        if (!confirm(`Export all photos to the configured export folder?`)) {
+            return;
+        }
+        await exportPhotos('all');
+    });
+    
+    // Export tagged button
+    exportTaggedBtn.addEventListener('click', async () => {
+        const taggedCount = state.photos.filter(p => p.tagged).length;
+        if (taggedCount === 0) {
+            alert('No tagged photos to export.');
+            return;
+        }
+        
+        if (!confirm(`Export ${taggedCount} tagged photos to the configured export folder?`)) {
+            return;
+        }
+        await exportPhotos('tagged');
     });
 
     // Thumbnail size slider
@@ -454,6 +478,28 @@ async function bulkTagPhotos(indices, tagged) {
         alert('Error tagging photos.');
     }
 }
+
+async function exportPhotos(exportType) {
+    try {
+        const response = await fetch('/api/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ export_type: exportType })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+        } else {
+            alert('Export failed: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error exporting photos:', error);
+        alert('Error exporting photos: ' + error.message);
+    }
+}
+
 
 function displayPhotos() {
     displayPhotoList();
@@ -1153,6 +1199,7 @@ function initializeSettingsView() {
     const applyTimeOffsetNotUpdatedBtn = document.getElementById('apply-time-offset-not-updated');
     const mapProviderSelect = document.getElementById('map-provider');
     const elevationServiceSelect = document.getElementById('elevation-service');
+    const exportFolderInput = document.getElementById('export-folder-input');
     const autoSaveConfigCheckbox = document.getElementById('auto-save-config');
     const saveConfigBtn = document.getElementById('save-config');
     const saveConfigAsBtn = document.getElementById('save-config-as');
@@ -1165,6 +1212,9 @@ function initializeSettingsView() {
     applyTimeOffsetAllBtn.addEventListener('click', applyTimeOffsetAll);
     applyTimeOffsetTaggedBtn.addEventListener('click', applyTimeOffsetTagged);
     applyTimeOffsetNotUpdatedBtn.addEventListener('click', applyTimeOffsetNotUpdated);
+    
+    // Export folder input - save on change
+    exportFolderInput.addEventListener('change', saveSettings);
     
     // Save settings when changed
     mapProviderSelect.addEventListener('change', saveSettings);
@@ -1222,6 +1272,11 @@ async function loadSettings() {
             folderPathInput.value = settings.folder_path;
         }
         
+        const exportFolderInput = document.getElementById('export-folder-input');
+        if (exportFolderInput && settings.export_folder) {
+            exportFolderInput.value = settings.export_folder;
+        }
+        
         if (thumbnailSizeSlider && settings.thumbnail_size) {
             thumbnailSizeSlider.value = settings.thumbnail_size;
             state.thumbnailSize = settings.thumbnail_size;
@@ -1250,6 +1305,7 @@ async function saveSettings() {
             sort_by: document.getElementById('sort-select').value,
             thumbnail_size: parseInt(document.getElementById('thumbnail-size').value),
             folder_path: document.getElementById('folder-path-input').value,
+            export_folder: document.getElementById('export-folder-input').value,
             auto_save_config: document.getElementById('auto-save-config').checked
         };
         

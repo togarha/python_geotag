@@ -90,6 +90,10 @@
                     <button id="untag-all-visible" class="btn btn-secondary" title="Untag all visible photos">🚫</button>
                 </div>
                 <div class="control-group">
+                    <button id="export-all" class="btn btn-primary" title="Export all photos">📤</button>
+                    <button id="export-tagged" class="btn btn-success" title="Export tagged photos">📤🏷️</button>
+                </div>
+                <div class="control-group">
                     <label for="thumbnail-size">Thumbnail Size:</label>
                     <input type="range" id="thumbnail-size" min="100" max="400" value="200" step="50">
                     <span id="size-value">200px</span>
@@ -229,6 +233,15 @@
                         </select>
                     </div>
                     <p class="help-text">Select "None" for Elevation API to disable automatic elevation fetching.</p>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Export Settings</h3>
+                    <div class="setting-item">
+                        <label for="export-folder-input">Export Folder:</label>
+                        <input type="text" id="export-folder-input" placeholder="Enter full path (e.g., C:\Photos\Export)" class="format-input">
+                    </div>
+                    <p class="help-text">Enter the full path where exported photos will be saved. Photos will be exported with updated EXIF data and filenames.</p>
                 </div>
                 
                 <div class="settings-section">

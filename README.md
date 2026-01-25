@@ -14,7 +14,14 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
   - Combined filters: Tagged+With GPS, Tagged+Without GPS, Untagged+With GPS, Untagged+Without GPS
 - **Search**: Real-time filename search
 - **Date Range Filter**: Filter photos by capture date with from/to date pickers
-- **Bulk Operations**: Tag or untag all visible photos with one click
+- **Bulk Operations**: Tag or untag all currently visible photos with one click
+- **Export Functionality**: Export photos with updated metadata to a designated folder
+  - Export all photos or only tagged photos
+  - Updates EXIF GPS coordinates and altitude in exported files
+  - Updates EXIF capture time (DateTimeOriginal, DateTimeDigitized)
+  - Sets file creation and modification timestamps (cross-platform)
+  - Uses new filename if configured
+  - Conflict detection prevents accidental overwrites
 - **Dual View**: List and grid thumbnail views synchronized in real-time
 - **Adjustable Thumbnails**: Slide control for thumbnail size (100-400px)
 - **Cache-Busting**: Automatic thumbnail and image refresh with timestamp parameters
@@ -150,6 +157,8 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
    - PyYAML (predefined positions)
    - requests (elevation APIs)
    - python-multipart (file uploads)
+   - piexif (EXIF metadata updates)
+   - pywin32 (Windows file timestamps) - Windows only
 
 3. **Configure Services**:
    
@@ -221,6 +230,7 @@ sort_by: capture_time                 # capture_time or name
 thumbnail_size: 200                   # 100-400 pixels
 folder_path: "C:/Photos"             # Last used folder path
 auto_save_config: true               # Auto-save settings changes
+export_folder: ""                    # Folder for exporting photos with metadata
 ```
 
 **Sample configuration files** are available in `test/resources/`:
@@ -257,9 +267,28 @@ See `test/resources/README.md` for detailed configuration documentation.
 3. **Bulk Operations**:
    - **Tag All Visible (🏷️ button)** - Tags all currently filtered/visible photos
    - **Untag All Visible (🚫 button)** - Untags all currently filtered/visible photos
-   - Both operations show confirmation dialog with photo count
+   - **Export All (📤 button)** - Exports all visible photos with updated metadata
+   - **Export Tagged (📤🏷️ button)** - Exports only tagged photos with updated metadata
+   - All operations show confirmation dialog with photo count
 
-4. **Interact with Photos**:
+4. **Export Photos**:
+   - **Set Export Folder** in Settings view
+   - **Export All Photos**: Exports all currently visible photos
+   - **Export Tagged Photos**: Exports only tagged photos
+   - **What gets updated**:
+     - New filename (if configured via renaming format)
+     - GPS coordinates and altitude in EXIF (from final_latitude, final_longitude, final_altitude)
+     - Capture time in EXIF (from new_time or exif_capture_time)
+     - File creation timestamp (cross-platform)
+     - File modification timestamp (cross-platform)
+   - **Conflict Protection**: Checks for existing files before export, cancels if conflicts found
+   - **Cross-Platform**:
+     - Windows: Uses Win32 API for creation time
+     - macOS: Uses SetFile command or touch fallback
+     - Linux: Sets modification time only (creation time not supported on most filesystems)
+   - **Progress Feedback**: Shows count of exported photos and any failures
+
+5. **Interact with Photos**:
    - Single click: Select a photo
    - Double click: Open in Large Photo View
    - Press Space: Open selected photo in Large Photo View
@@ -329,19 +358,25 @@ See `test/resources/README.md` for detailed configuration documentation.
 
 ### Settings View
 
-1. **Map & Elevation Provider Configuration**:
+1. **Export Settings**:
+   - **Export Folder**: Enter the full path to folder where exported photos will be saved
+   - Path is entered manually (browser folder picker not available due to security restrictions)
+   - Example: `C:\Users\YourName\Pictures\Exported` or `/Users/YourName/Pictures/Exported`
+   - Folder will be created automatically if it doesn't exist during export
+
+2. **Map & Elevation Provider Configuration**:
    - **Map Provider**: Choose between OpenStreetMap, ESRI World Imagery (Satellite), or Google Maps
    - **Elevation Service**: Select None, Open-Elevation, OpenTopoData (SRTM), or Google
    - Changes sync with map provider selectors in Photo and GPX views
 
-2. **Configuration File Management**:
+3. **Configuration File Management**:
    - **Auto-save Config**: Toggle to automatically save settings changes
    - **Current Config File**: Shows which config file is loaded (if any)
    - **Save Config**: Manually save settings to current config file
    - **Download Config As**: Download current settings as a new YAML file
-   - All settings are persisted: map provider, elevation service, filename format, folder preferences
+   - All settings are persisted: map provider, elevation service, filename format, folder preferences, export folder
 
-3. **Photo Renaming**:
+4. **Photo Renaming**:
    - Configure filename format using Python strftime codes
    - Default format: `%Y%m%d_%H%M%S` (e.g., `20260123_143052.jpg`)
    - Available format codes:
@@ -360,7 +395,7 @@ See `test/resources/README.md` for detailed configuration documentation.
      - Example: `20260123_143052.jpg`, `20260123_143052a.jpg`, `20260123_143052b.jpg`
      - Case-insensitive comparison for Windows compatibility
 
-4. **Photo Title Management**:
+5. **Photo Title Management**:
    - Set title for all photos at once
    - Set title for tagged photos only
    - Clear all titles
@@ -368,7 +403,7 @@ See `test/resources/README.md` for detailed configuration documentation.
    - Uses ImageDescription EXIF field (cross-platform standard)
    - Fallback support for Windows XPTitle and XPComment tags
 
-5. **Format Help**:
+6. **Format Help**:
    - Collapsible help section with format codes and examples
    - Click to expand/collapse
 
@@ -552,6 +587,15 @@ Stores GPX track point information with time offset support:
 - `GET /api/config/download` - Download current settings as YAML file
 - `GET /api/config/info` - Get current config file information
 
+### Photo Export
+- `POST /api/export` - Export photos with updated metadata
+  - Request body: `{"export_type": "all" | "tagged"}`
+  - Updates EXIF GPS coordinates and altitude
+  - Updates EXIF capture time
+  - Sets file creation and modification timestamps (cross-platform)
+  - Returns count of exported photos and any failures
+  - Returns 409 Conflict if destination files already exist
+
 ## Project Structure
 
 ```
@@ -563,7 +607,8 @@ geotag/
 │   ├── gpx_manager.py       # GPX file parsing and matching with elevation
 │   ├── positions_manager.py # YAML positions parsing and management
 │   ├── elevation_service.py # Elevation API integration (3 services)
-│   └── config_manager.py    # Configuration file management (YAML)
+│   ├── config_manager.py    # Configuration file management (YAML)
+│   └── export_manager.py    # Photo export with EXIF and timestamp updates
 ├── static/
 │   ├── styles.css           # Application styling with modal designs
 │   └── app.js               # Frontend JavaScript with elevation and positions
@@ -652,9 +697,6 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 
 ## Future Enhancements
 
-- [ ] Batch EXIF writing (save final GPS coordinates and metadata back to photos)
-- [ ] Actual file renaming (apply new_name to files)
-- [ ] Export tagged photos to new folder
 - [ ] Support for RAW image formats
 - [ ] Multi-language support
 - [ ] Database persistence (SQLite)
@@ -668,8 +710,42 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [x] ~~Photo renaming based on capture time~~ ✅ Implemented in v1.3
 - [x] ~~Photo metadata editing~~ ✅ Implemented in v1.3
 - [x] ~~Advanced filtering and search~~ ✅ Implemented in v1.5
+- [x] ~~Export photos with updated metadata~~ ✅ Implemented in v1.6
 
 ## Recent Updates
+
+### Version 1.6 - Photo Export with Metadata Updates
+
+**Export Functionality**:
+- ✅ Export all photos or tagged photos only
+- ✅ EXIF metadata updates in exported files:
+  - GPS coordinates (latitude, longitude) from final position
+  - GPS altitude from final altitude
+  - Capture time (DateTimeOriginal, DateTimeDigitized, DateTime) from new_time or original
+- ✅ File timestamp updates (cross-platform):
+  - **Windows**: Creation, access, and modification times using Win32 API (pywin32)
+  - **macOS**: Creation time via SetFile command with touch fallback
+  - **Linux**: Modification and access times (creation time not supported on most filesystems)
+- ✅ Pandas Timestamp to datetime conversion for API compatibility
+- ✅ New filename support from photo renaming format
+- ✅ Export folder configuration in Settings view
+- ✅ Direct path input (browser folder picker not available due to security)
+- ✅ File conflict detection before export
+- ✅ 409 Conflict error if destination files exist (prevents overwrites)
+- ✅ Export buttons in thumbnails view: 📤 (all) and 📤🏷️ (tagged)
+- ✅ Progress feedback showing exported count and failures
+- ✅ ExportManager class with piexif for EXIF manipulation
+
+**Technical Details**:
+- Uses `shutil.copy()` instead of `copy2()` to avoid timestamp preservation
+- Updates EXIF first, then sets file timestamps after file is finalized
+- Handles NaN/None values gracefully
+- Preserves all non-updated EXIF data
+- Quality setting: 95 for minimal quality loss
+
+**Dependencies**:
+- Added piexif>=1.1.3 for EXIF updates
+- Added pywin32>=306 for Windows (platform-specific)
 
 ### Version 1.5 - Advanced Filtering & Bulk Operations
 

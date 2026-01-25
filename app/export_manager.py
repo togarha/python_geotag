@@ -137,14 +137,9 @@ class ExportManager:
             ts = timestamp.timestamp()
             system = platform.system()
             
-            print(f"DEBUG: Setting file times for {file_path.name}")
-            print(f"DEBUG: System={system}, WINDOWS_TIMESTAMP_SUPPORT={WINDOWS_TIMESTAMP_SUPPORT}")
-            print(f"DEBUG: Target timestamp={timestamp}")
-            
             # Platform-specific handling
             if system == 'Windows' and WINDOWS_TIMESTAMP_SUPPORT:
                 # On Windows, set all three timestamps using Windows API
-                print(f"DEBUG: Using Windows API to set timestamps")
                 ExportManager._set_all_times_windows(file_path, timestamp)
             elif system == 'Darwin':  # macOS
                 ExportManager._set_creation_time_macos(file_path, timestamp)
@@ -153,7 +148,6 @@ class ExportManager:
             else:  # Linux and fallback
                 # Linux doesn't support setting creation time (birthtime) on most filesystems
                 # Just set modification and access time
-                print(f"DEBUG: Using os.utime as fallback")
                 os.utime(file_path, (ts, ts))
             
         except Exception as e:
@@ -163,18 +157,12 @@ class ExportManager:
     def _set_all_times_windows(file_path: Path, timestamp: datetime):
         """Set creation, access, and modification times on Windows"""
         try:
-            print(f"DEBUG: Entering _set_all_times_windows")
-            print(f"DEBUG: File path: {file_path}")
-            print(f"DEBUG: Timestamp: {timestamp}, Type: {type(timestamp)}")
-            
             # Convert pandas Timestamp to Python datetime if necessary
             if hasattr(timestamp, 'to_pydatetime'):
                 timestamp = timestamp.to_pydatetime()
-                print(f"DEBUG: Converted pandas Timestamp to datetime: {timestamp}")
             
             # Convert to Windows FILETIME format
             wintime = pywintypes.Time(timestamp)
-            print(f"DEBUG: Converted to wintime: {wintime}")
             
             # Open the file handle with appropriate permissions
             handle = win32file.CreateFile(
@@ -186,48 +174,17 @@ class ExportManager:
                 win32con.FILE_ATTRIBUTE_NORMAL,
                 None
             )
-            print(f"DEBUG: File handle opened successfully")
             
             # Set all three times: creation, access, and modification
             # SetFileTime(handle, creation_time, access_time, modification_time)
             win32file.SetFileTime(handle, wintime, wintime, wintime)
-            print(f"DEBUG: SetFileTime called successfully")
             
             handle.close()
-            print(f"Set all timestamps for {file_path.name} to {timestamp}")
             
         except Exception as e:
-            import traceback
-            print(f"ERROR: Could not set timestamps on Windows: {e}")
-            print(f"ERROR: Traceback: {traceback.format_exc()}")
+            print(f"Warning: Could not set timestamps on Windows: {e}")
     
-    @staticmethod
-    def _set_creation_time_windows(file_path: Path, timestamp: datetime):
-        """Set creation time on Windows (deprecated - use _set_all_times_windows)"""
-        try:
-            # Convert to Windows FILETIME format
-            wintime = pywintypes.Time(timestamp)
-            
-            # Open the file handle with appropriate permissions
-            handle = win32file.CreateFile(
-                str(file_path),
-                win32con.GENERIC_WRITE,
-                win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE | win32con.FILE_SHARE_DELETE,
-                None,
-                win32con.OPEN_EXISTING,
-                win32con.FILE_ATTRIBUTE_NORMAL,
-                None
-            )
-            
-            # Set creation time (first parameter), keep access and modification times as None
-            # They will be set by os.utime() afterwards
-            win32file.SetFileTime(handle, wintime, None, None)
-            handle.close()
-            
-            print(f"Set creation time for {file_path.name} to {timestamp}")
-            
-        except Exception as e:
-            print(f"Warning: Could not set creation time on Windows: {e}")
+
     
     @staticmethod
     def _set_creation_time_macos(file_path: Path, timestamp: datetime):

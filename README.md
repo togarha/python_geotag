@@ -8,7 +8,13 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 - **Folder Scanning**: Select folders via file picker or drag-and-drop
 - **Recursive Search**: Include photos from subfolders
 - **Smart Sorting**: Sort by capture time or filename with synchronized grid and list views
-- **Filtering**: View all, tagged, or untagged photos with correct index tracking
+- **Advanced Filtering**: Comprehensive filter combining tag status and GPS status
+  - Tag filters: All, Tagged, Untagged
+  - GPS filters: With GPS, Without GPS, With EXIF, With GPX, With Manual
+  - Combined filters: Tagged+With GPS, Tagged+Without GPS, Untagged+With GPS, Untagged+Without GPS
+- **Search**: Real-time filename search
+- **Date Range Filter**: Filter photos by capture date with from/to date pickers
+- **Bulk Operations**: Tag or untag all visible photos with one click
 - **Dual View**: List and grid thumbnail views synchronized in real-time
 - **Adjustable Thumbnails**: Slide control for thumbnail size (100-400px)
 - **Cache-Busting**: Automatic thumbnail and image refresh with timestamp parameters
@@ -235,12 +241,25 @@ See `test/resources/README.md` for detailed configuration documentation.
 2. **Configure Options**:
    - Check "Include subfolders" for recursive scanning
    - Select sort order (Capture Time or Name) - both grid and list update automatically
-   - Choose filter (All Photos, Tagged Only, Untagged Only) - maintains correct photo indices
+   - **Filter dropdown** - Comprehensive filtering combining tag and GPS status:
+     - Tag filters: All Photos, Tagged Only, Untagged Only
+     - GPS filters: With GPS, Without GPS, With EXIF GPS, With GPX, With Manual GPS
+     - Combined filters: Tagged+With GPS, Tagged+Without GPS, Untagged+With GPS, Untagged+Without GPS
+   - **Search field** - Search photos by filename in real-time
+   - **Date range filter (📅 button)** - Filter photos by capture date
+     - Click calendar icon to show/hide date pickers
+     - Select from date and/or to date
+     - Clear button (✖️) to remove date filter
    - Adjust thumbnail size with the slider
    - Choose map provider (OpenStreetMap, ESRI World Imagery, or Google Maps)
    - Select elevation service (None, Open-Elevation, OpenTopoData, or Google)
 
-3. **Interact with Photos**:
+3. **Bulk Operations**:
+   - **Tag All Visible (🏷️ button)** - Tags all currently filtered/visible photos
+   - **Untag All Visible (🚫 button)** - Untags all currently filtered/visible photos
+   - Both operations show confirmation dialog with photo count
+
+4. **Interact with Photos**:
    - Single click: Select a photo
    - Double click: Open in Large Photo View
    - Press Space: Open selected photo in Large Photo View
@@ -498,9 +517,10 @@ Stores GPX track point information with time offset support:
 ### Photo Management
 - `GET /` - Serve main HTML page
 - `POST /api/scan-folder` - Scan folder for photos (returns photos with original_index)
-- `GET /api/photos` - Get photos with filtering (maintains original_index)
+- `GET /api/photos` - Get all photos (filtering done client-side)
 - `GET /api/photos/{index}` - Get specific photo details with GPX matching
 - `POST /api/photos/{index}/tag` - Toggle photo tag status
+- `POST /api/photos/bulk-tag` - Tag or untag multiple photos at once
 - `GET /api/photo-thumbnail/{index}` - Get photo thumbnail (with cache-busting)
 - `GET /api/photo-image/{index}` - Get full-size image (with cache-busting)
 - `POST /api/sort` - Set photo sort order
@@ -639,7 +659,6 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [ ] Multi-language support
 - [ ] Database persistence (SQLite)
 - [ ] User authentication for multi-user scenarios
-- [ ] Advanced filtering and search
 - [ ] Photo editing tools
 - [ ] Timeline view
 - [ ] Offline map tiles caching
@@ -648,8 +667,36 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [ ] Heatmap view for photo locations
 - [x] ~~Photo renaming based on capture time~~ ✅ Implemented in v1.3
 - [x] ~~Photo metadata editing~~ ✅ Implemented in v1.3
+- [x] ~~Advanced filtering and search~~ ✅ Implemented in v1.5
 
 ## Recent Updates
+
+### Version 1.5 - Advanced Filtering & Bulk Operations
+
+**Advanced Filtering System**:
+- ✅ Comprehensive filter dropdown combining tag and GPS status
+- ✅ Tag filters: All, Tagged Only, Untagged Only
+- ✅ GPS filters: With GPS, Without GPS, With EXIF, With GPX, With Manual
+- ✅ Combined filters: Tagged+GPS combinations (4 options)
+- ✅ Real-time filename search field
+- ✅ Date range filter with from/to date pickers
+- ✅ Calendar button (📅) to show/hide date range controls
+- ✅ Clear date filter button (✖️)
+- ✅ All filters work together (compound filtering)
+- ✅ Client-side filtering for instant results
+
+**Bulk Operations**:
+- ✅ Tag All Visible button (🏷️) - Icon only with tooltip
+- ✅ Untag All Visible button (🚫) - Icon only with tooltip
+- ✅ Bulk tag/untag API endpoint
+- ✅ Confirmation dialogs showing photo count
+- ✅ Works with filtered results
+
+**Filtering Logic**:
+- ✅ Uses EXIF capture time or creation time for date filtering
+- ✅ Maintains photo index tracking across filters
+- ✅ Updates displays in real-time
+- ✅ Preserves sort order with filters
 
 ### Version 1.4 - Configuration Management & ESRI Satellite Imagery
 

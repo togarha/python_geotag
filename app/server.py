@@ -634,6 +634,8 @@ async def update_settings(request: SettingsUpdate):
             updates["thumbnail_size"] = request.thumbnail_size
         if request.folder_path is not None:
             updates["folder_path"] = request.folder_path
+        if request.export_folder is not None:
+            updates["export_folder"] = request.export_folder
         if request.auto_save_config is not None:
             updates["auto_save_config"] = request.auto_save_config
         

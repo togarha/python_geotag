@@ -8,7 +8,6 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
-from PIL import Image
 import piexif
 
 # Windows-specific imports for setting creation time
@@ -74,13 +73,11 @@ class ExportManager:
     @staticmethod
     def _update_exif(file_path: str, latitude: Optional[float], longitude: Optional[float], 
                     altitude: Optional[float], capture_time: Optional[datetime]):
-        """Update EXIF data in the exported photo"""
+        """Update EXIF data in the exported photo without recompressing the image"""
         try:
-            img = Image.open(file_path)
-            
-            # Try to load existing EXIF
+            # Load existing EXIF directly from file
             try:
-                exif_dict = piexif.load(img.info.get('exif', b''))
+                exif_dict = piexif.load(file_path)
             except:
                 exif_dict = {"0th": {}, "Exif": {}, "GPS": {}, "1st": {}, "thumbnail": None}
             
@@ -123,9 +120,9 @@ class ExportManager:
                 zeroth_ifd[piexif.ImageIFD.DateTime] = time_str.encode('utf-8')
                 exif_dict["0th"] = zeroth_ifd
             
-            # Save the updated EXIF
+            # Insert updated EXIF into the file without recompressing the image
             exif_bytes = piexif.dump(exif_dict)
-            img.save(file_path, exif=exif_bytes, quality=95)
+            piexif.insert(exif_bytes, file_path)
             
         except Exception as e:
             print(f"Error updating EXIF for {file_path}: {e}")

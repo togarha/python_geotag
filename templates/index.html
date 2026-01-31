@@ -239,7 +239,10 @@
                     <h3>Export Settings</h3>
                     <div class="setting-item">
                         <label for="export-folder-input">Export Folder:</label>
-                        <input type="text" id="export-folder-input" placeholder="Enter full path (e.g., C:\Photos\Export)" class="format-input">
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="export-folder-input" placeholder="Enter full path (e.g., C:\Photos\Export)" class="format-input" style="flex: 1;">
+                            <button id="save-export-folder" class="btn">Save</button>
+                        </div>
                     </div>
                     <p class="help-text">Enter the full path where exported photos will be saved. Photos will be exported with updated EXIF data and filenames.</p>
                 </div>

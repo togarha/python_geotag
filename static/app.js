@@ -1200,6 +1200,7 @@ function initializeSettingsView() {
     const mapProviderSelect = document.getElementById('map-provider');
     const elevationServiceSelect = document.getElementById('elevation-service');
     const exportFolderInput = document.getElementById('export-folder-input');
+    const saveExportFolderBtn = document.getElementById('save-export-folder');
     const autoSaveConfigCheckbox = document.getElementById('auto-save-config');
     const saveConfigBtn = document.getElementById('save-config');
     const saveConfigAsBtn = document.getElementById('save-config-as');
@@ -1213,8 +1214,11 @@ function initializeSettingsView() {
     applyTimeOffsetTaggedBtn.addEventListener('click', applyTimeOffsetTagged);
     applyTimeOffsetNotUpdatedBtn.addEventListener('click', applyTimeOffsetNotUpdated);
     
-    // Export folder input - save on change
-    exportFolderInput.addEventListener('change', saveSettings);
+    // Export folder - save on button click
+    saveExportFolderBtn.addEventListener('click', async () => {
+        await saveSettings();
+        alert('Export folder saved successfully!');
+    });
     
     // Save settings when changed
     mapProviderSelect.addEventListener('change', saveSettings);

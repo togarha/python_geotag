@@ -3,7 +3,7 @@ FastAPI server with all endpoints for the geotagging application
 """
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Optional
@@ -719,105 +719,121 @@ async def get_config_info():
     }
 
 
+
 @app.post("/api/export")
 async def export_photos(request: ExportRequest):
     """
-    Export photos with updated metadata
+    Export photos with updated metadata - streaming progress updates
     """
-    try:
-        # Get export folder from config
-        export_folder = config_manager.get('export_folder', '')
-        
-        if not export_folder:
-            raise HTTPException(status_code=400, detail="Export folder not configured")
-        
-        # Get photos to export
-        if request.export_type == 'tagged':
-            photos_df = photo_manager.get_photos('tagged')
-        else:  # 'all'
-            photos_df = photo_manager.get_photos('all')
-        
-        if photos_df.empty:
-            return {"success": True, "count": 0, "message": "No photos to export"}
-        
-        # Check for filename conflicts before starting export
-        export_path = Path(export_folder)
-        conflicts = []
-        
-        for idx, row in photos_df.iterrows():
-            photo = row.to_dict()
-            new_filename = photo.get('new_name') or photo.get('filename')
-            dest_file = export_path / new_filename
+    import json
+    import asyncio
+    
+    async def generate():
+        try:
+            # Get export folder from config
+            export_folder = config_manager.get('export_folder', '')
             
-            if dest_file.exists():
-                conflicts.append(new_filename)
-        
-        # If there are conflicts, report error and don't export anything
-        if conflicts:
-            conflict_list = ", ".join(conflicts[:5])  # Show first 5
-            if len(conflicts) > 5:
-                conflict_list += f" and {len(conflicts) - 5} more"
-            raise HTTPException(
-                status_code=409,
-                detail=f"Export cancelled: {len(conflicts)} file(s) already exist in destination folder: {conflict_list}"
-            )
-        
-        # Export each photo
-        exported_count = 0
-        failed_photos = []
-        
-        for idx, row in photos_df.iterrows():
-            photo = row.to_dict()
-            # Get the new filename or use original
-            new_filename = photo.get('new_name') or photo.get('filename')
+            if not export_folder:
+                data = {"error": "Export folder not configured"}
+                yield f"data: {json.dumps(data)}\n\n"
+                return
             
-            # Get the new time or use original
-            new_time = None
-            if photo.get('new_time') and pd.notna(photo['new_time']):
-                new_time = photo['new_time']
-            elif photo.get('exif_capture_time') and pd.notna(photo['exif_capture_time']):
-                new_time = photo['exif_capture_time']
+            # Get photos to export
+            if request.export_type == 'tagged':
+                photos_df = photo_manager.get_photos('tagged')
+            else:  # 'all'
+                photos_df = photo_manager.get_photos('all')
             
-            # Get final GPS coordinates
-            final_lat = photo.get('final_latitude', -360)
-            final_lon = photo.get('final_longitude', -360)
-            final_alt = photo.get('final_altitude')
+            if photos_df.empty:
+                data = {"progress": 100, "current": 0, "total": 0, "message": "No photos to export", "done": True}
+                yield f"data: {json.dumps(data)}\n\n"
+                return
             
-            # Only pass valid GPS coordinates
-            if final_lat == -360 or final_lon == -360:
-                final_lat = None
-                final_lon = None
-                final_alt = None
+            total_photos = len(photos_df)
             
-            # Export the photo
-            success = ExportManager.export_photo(
-                source_path=photo['full_path'],
-                dest_folder=export_folder,
-                new_filename=new_filename,
-                final_lat=final_lat,
-                final_lon=final_lon,
-                final_alt=final_alt,
-                new_time=new_time
-            )
+            # Check for filename conflicts before starting export
+            export_path = Path(export_folder)
+            conflicts = []
             
-            if success:
-                exported_count += 1
-            else:
-                failed_photos.append(photo['filename'])
-        
-        message = f"Exported {exported_count} photos"
-        if failed_photos:
-            message += f". Failed: {len(failed_photos)} photos"
-        
-        return {
-            "success": True,
-            "count": exported_count,
-            "failed": len(failed_photos),
-            "message": message
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
+            for idx, row in photos_df.iterrows():
+                photo = row.to_dict()
+                new_filename = photo.get('new_name') or photo.get('filename')
+                dest_file = export_path / new_filename
+                
+                if dest_file.exists():
+                    conflicts.append(new_filename)
+            
+            # If there are conflicts, report error and don't export anything
+            if conflicts:
+                conflict_list = ", ".join(conflicts[:5])  # Show first 5
+                if len(conflicts) > 5:
+                    conflict_list += f" and {len(conflicts) - 5} more"
+                error_msg = f"Export cancelled: {len(conflicts)} file(s) already exist in destination folder: {conflict_list}"
+                data = {"error": error_msg}
+                yield f"data: {json.dumps(data)}\n\n"
+                return
+            
+            # Export each photo
+            exported_count = 0
+            failed_photos = []
+            
+            for idx, row in photos_df.iterrows():
+                photo = row.to_dict()
+                # Get the new filename or use original
+                new_filename = photo.get('new_name') or photo.get('filename')
+                
+                # Send progress update
+                progress = int((exported_count / total_photos) * 100)
+                data = {"progress": progress, "current": exported_count + 1, "total": total_photos, "filename": new_filename}
+                yield f"data: {json.dumps(data)}\n\n"
+                
+                # Get the new time or use original
+                new_time = None
+                if photo.get('new_time') and pd.notna(photo['new_time']):
+                    new_time = photo['new_time']
+                elif photo.get('exif_capture_time') and pd.notna(photo['exif_capture_time']):
+                    new_time = photo['exif_capture_time']
+                
+                # Get final GPS coordinates
+                final_lat = photo.get('final_latitude', -360)
+                final_lon = photo.get('final_longitude', -360)
+                final_alt = photo.get('final_altitude')
+                
+                # Only pass valid GPS coordinates
+                if final_lat == -360 or final_lon == -360:
+                    final_lat = None
+                    final_lon = None
+                    final_alt = None
+                
+                # Export the photo
+                success = ExportManager.export_photo(
+                    source_path=photo['full_path'],
+                    dest_folder=export_folder,
+                    new_filename=new_filename,
+                    final_lat=final_lat,
+                    final_lon=final_lon,
+                    final_alt=final_alt,
+                    new_time=new_time
+                )
+                
+                if success:
+                    exported_count += 1
+                else:
+                    failed_photos.append(photo['filename'])
+                
+                # Small delay to ensure progress updates are sent
+                await asyncio.sleep(0.01)
+            
+            # Send final completion message
+            message = f"Exported {exported_count} photos"
+            if failed_photos:
+                message += f". Failed: {len(failed_photos)} photos"
+            
+            data = {"progress": 100, "current": total_photos, "total": total_photos, "message": message, "done": True, "count": exported_count, "failed": len(failed_photos)}
+            yield f"data: {json.dumps(data)}\n\n"
+            
+        except Exception as e:
+            data = {"error": str(e)}
+            yield f"data: {json.dumps(data)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")

@@ -492,22 +492,77 @@ async function bulkTagPhotos(indices, tagged) {
 }
 
 async function exportPhotos(exportType) {
+    const modal = document.getElementById('export-progress-modal');
+    const progressBar = document.getElementById('export-progress-bar');
+    const progressText = document.getElementById('export-progress-text');
+    const currentFileText = document.getElementById('export-current-file');
+    
     try {
+        // Show the progress modal
+        modal.style.display = 'block';
+        progressBar.style.width = '0%';
+        progressBar.textContent = '0%';
+        progressText.textContent = 'Preparing export...';
+        currentFileText.textContent = '';
+        
         const response = await fetch('/api/export', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ export_type: exportType })
         });
         
-        const result = await response.json();
+        if (!response.ok) {
+            throw new Error('Export request failed');
+        }
         
-        if (result.success) {
-            alert(result.message);
-        } else {
-            alert('Export failed: ' + (result.detail || 'Unknown error'));
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\\n');
+            buffer = lines.pop(); // Keep incomplete line in buffer
+            
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = JSON.parse(line.slice(6));
+                    
+                    if (data.error) {
+                        modal.style.display = 'none';
+                        alert('Export failed: ' + data.error);
+                        return;
+                    }
+                    
+                    if (data.progress !== undefined) {
+                        progressBar.style.width = data.progress + '%';
+                        progressBar.textContent = data.progress + '%';
+                    }
+                    
+                    if (data.current && data.total) {
+                        progressText.textContent = `Exporting photo ${data.current} of ${data.total}`;
+                    }
+                    
+                    if (data.filename) {
+                        currentFileText.textContent = data.filename;
+                    }
+                    
+                    if (data.done) {
+                        setTimeout(() => {
+                            modal.style.display = 'none';
+                            alert(data.message);
+                        }, 500);
+                    }
+                }
+            }
         }
     } catch (error) {
         console.error('Error exporting photos:', error);
+        modal.style.display = 'none';
         alert('Error exporting photos: ' + error.message);
     }
 }

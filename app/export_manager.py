@@ -81,6 +81,18 @@ class ExportManager:
             except:
                 exif_dict = {"0th": {}, "Exif": {}, "GPS": {}, "1st": {}, "thumbnail": None}
             
+            # Clean up problematic EXIF tags that may have wrong types
+            # Tag 41729 (ComponentsConfiguration) and similar tags can cause issues
+            if "Exif" in exif_dict:
+                exif_ifd = exif_dict["Exif"]
+                # Remove tags that commonly have type issues
+                problematic_tags = [41729, 41730]  # ComponentsConfiguration, ComponentsConfiguration
+                for tag in problematic_tags:
+                    if tag in exif_ifd:
+                        # Check if it's the wrong type and fix or remove it
+                        if isinstance(exif_ifd[tag], int):
+                            del exif_ifd[tag]
+            
             # Update GPS coordinates if provided
             if latitude is not None and longitude is not None and latitude != -360 and longitude != -360:
                 gps_ifd = exif_dict.get("GPS", {})
@@ -121,8 +133,29 @@ class ExportManager:
                 exif_dict["0th"] = zeroth_ifd
             
             # Insert updated EXIF into the file without recompressing the image
-            exif_bytes = piexif.dump(exif_dict)
-            piexif.insert(exif_bytes, file_path)
+            try:
+                exif_bytes = piexif.dump(exif_dict)
+                piexif.insert(exif_bytes, file_path)
+            except Exception as dump_error:
+                # If dump fails, try removing all EXIF and inserting only our changes
+                print(f"Warning: EXIF dump failed ({dump_error}), rebuilding EXIF from scratch")
+                # Remove all existing EXIF
+                piexif.remove(file_path)
+                # Create minimal EXIF dict with only our changes
+                minimal_exif = {"0th": {}, "Exif": {}, "GPS": {}}
+                
+                # Re-apply our changes to the minimal dict
+                if latitude is not None and longitude is not None and latitude != -360 and longitude != -360:
+                    minimal_exif["GPS"] = exif_dict.get("GPS", {})
+                if capture_time:
+                    minimal_exif["Exif"] = {k: v for k, v in exif_dict.get("Exif", {}).items() 
+                                           if k in [piexif.ExifIFD.DateTimeOriginal, piexif.ExifIFD.DateTimeDigitized]}
+                    minimal_exif["0th"] = {k: v for k, v in exif_dict.get("0th", {}).items() 
+                                          if k in [piexif.ImageIFD.DateTime]}
+                
+                # Try inserting the minimal EXIF
+                exif_bytes = piexif.dump(minimal_exif)
+                piexif.insert(exif_bytes, file_path)
             
         except Exception as e:
             print(f"Error updating EXIF for {file_path}: {e}")

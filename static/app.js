@@ -331,7 +331,14 @@ function initializeThumbnailsView() {
 }
 
 async function scanFolder(folderPath, recursive) {
+    const loadingIndicator = document.getElementById('loading-indicator');
+    
     try {
+        // Show loading indicator
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'flex';
+        }
+        
         const response = await fetch('/api/scan-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -357,6 +364,11 @@ async function scanFolder(folderPath, recursive) {
     } catch (error) {
         console.error('Error scanning folder:', error);
         alert('Error scanning folder. Make sure the server is running.');
+    } finally {
+        // Hide loading indicator
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
     }
 }
 

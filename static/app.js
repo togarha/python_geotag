@@ -525,37 +525,41 @@ async function exportPhotos(exportType) {
             if (done) break;
             
             buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\\n');
+            const lines = buffer.split('\n');
             buffer = lines.pop(); // Keep incomplete line in buffer
             
             for (const line of lines) {
                 if (line.startsWith('data: ')) {
-                    const data = JSON.parse(line.slice(6));
-                    
-                    if (data.error) {
-                        modal.style.display = 'none';
-                        alert('Export failed: ' + data.error);
-                        return;
-                    }
-                    
-                    if (data.progress !== undefined) {
-                        progressBar.style.width = data.progress + '%';
-                        progressBar.textContent = data.progress + '%';
-                    }
-                    
-                    if (data.current && data.total) {
-                        progressText.textContent = `Exporting photo ${data.current} of ${data.total}`;
-                    }
-                    
-                    if (data.filename) {
-                        currentFileText.textContent = data.filename;
-                    }
-                    
-                    if (data.done) {
-                        setTimeout(() => {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        
+                        if (data.error) {
                             modal.style.display = 'none';
-                            alert(data.message);
-                        }, 500);
+                            alert('Export failed: ' + data.error);
+                            return;
+                        }
+                        
+                        if (data.progress !== undefined) {
+                            progressBar.style.width = data.progress + '%';
+                            progressBar.textContent = data.progress + '%';
+                        }
+                        
+                        if (data.current && data.total) {
+                            progressText.textContent = `Exporting photo ${data.current} of ${data.total}`;
+                        }
+                        
+                        if (data.filename) {
+                            currentFileText.textContent = data.filename;
+                        }
+                        
+                        if (data.done) {
+                            setTimeout(() => {
+                                modal.style.display = 'none';
+                                alert(data.message);
+                            }, 500);
+                        }
+                    } catch (parseError) {
+                        console.error('Failed to parse SSE data:', line, parseError);
                     }
                 }
             }

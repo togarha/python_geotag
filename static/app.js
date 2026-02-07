@@ -575,6 +575,17 @@ async function exportPhotos(exportType) {
 function displayPhotos() {
     displayPhotoList();
     displayPhotoGrid();
+    updateStatusBar();
+}
+
+function updateStatusBar() {
+    const totalPhotos = state.photos.length;
+    const visiblePhotos = state.filteredPhotos.length;
+    const taggedPhotos = state.photos.filter(photo => photo.tagged).length;
+    
+    document.getElementById('status-total').textContent = totalPhotos;
+    document.getElementById('status-visible').textContent = visiblePhotos;
+    document.getElementById('status-tagged').textContent = taggedPhotos;
 }
 
 function displayPhotoList() {

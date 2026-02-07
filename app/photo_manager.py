@@ -4,7 +4,7 @@ Photo Manager - Handles photo scanning, EXIF extraction, and DataFrame managemen
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from PIL import Image
+from PIL import Image, ImageOps
 from PIL.ExifTags import TAGS, GPSTAGS
 import tempfile
 import os
@@ -309,6 +309,9 @@ class PhotoManager:
         try:
             # Create thumbnail
             with Image.open(img_path) as img:
+                # Apply EXIF orientation before creating thumbnail
+                img = ImageOps.exif_transpose(img)
+                
                 # Convert to RGB if necessary (handles PNG, RGBA, etc.)
                 if img.mode not in ('RGB', 'L'):
                     img = img.convert('RGB')

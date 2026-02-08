@@ -19,6 +19,9 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
   - Export all photos or only tagged photos
   - Updates EXIF GPS coordinates and altitude in exported files
   - Updates EXIF capture time (DateTimeOriginal, DateTimeDigitized)
+  - **Updates GPS timestamps**: GPSDateStamp and GPSTimeStamp
+  - **Updates Offset Time**: OffsetTime, OffsetTimeOriginal, OffsetTimeDigitized (via exiftool)
+  - **Updates IPTC location metadata**: City, Sub-location, Province/State, Country
   - Sets file creation and modification timestamps (cross-platform)
   - Uses new filename if configured
   - Conflict detection prevents accidental overwrites
@@ -155,12 +158,25 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
    - Pillow (image processing)
    - gpxpy (GPX file parsing)
    - PyYAML (predefined positions)
-   - requests (elevation APIs)
+   - requests (elevation APIs and geocoding)
    - python-multipart (file uploads)
    - piexif (EXIF metadata updates)
+   - iptcinfo3 (IPTC metadata reading and writing)
+   - urllib3 (SSL warnings suppression)
    - pywin32 (Windows file timestamps) - Windows only
 
-3. **Configure Services**:
+3. **Install exiftool** (Required for OffsetTime export):
+   - Download from [exiftool.org](https://exiftool.org/)
+   - **Windows**: 
+     - Download the Windows Executable
+     - Rename `exiftool(-k).exe` to `exiftool.exe`
+     - Add to your system PATH
+   - **macOS**: `brew install exiftool`
+   - **Linux**: `sudo apt-get install libimage-exiftool-perl` (Debian/Ubuntu)
+   
+   **Note**: Export will work without exiftool, but OffsetTime tags won't be written
+
+4. **Configure Services**:
    
    **Map Providers**:
    - **OpenStreetMap (Default)**: No API key required - works out of the box!
@@ -403,7 +419,16 @@ See `test/resources/README.md` for detailed configuration documentation.
    - Uses ImageDescription EXIF field (cross-platform standard)
    - Fallback support for Windows XPTitle and XPComment tags
 
-6. **Format Help**:
+6. **Location Metadata Management**:
+   - **Retrieve for All Photos**: Fetch location data for all photos with GPS coordinates
+   - **Retrieve for Tagged Photos**: Fetch location data only for tagged photos
+   - Uses reverse geocoding (Nominatim/Photon) to get city, sub-location, state, country
+   - Progress feedback during bulk operations
+   - Automatic rate limiting (1 req/sec for Nominatim)
+   - Failover to Photon if Nominatim unavailable
+   - Location data saved to new_city, new_sublocation, new_state, new_country columns
+
+7. **Format Help**:
    - Collapsible help section with format codes and examples
    - Click to expand/collapse
 
@@ -427,15 +452,19 @@ See `test/resources/README.md` for detailed configuration documentation.
    - Modal window opens with editable fields:
      - **Photo Title**: Text input for title (blank to clear)
      - **Photo Date/Time**: datetime-local picker with seconds
-   - Each field has its own "Apply" button for independent updates
-   - Changes update the new_title and new_time columns
+     - **Location Fields**: City, Sub-location, State, Country
+       - "Retrieve from GPS" button auto-fills from reverse geocoding
+       - Manual entry also supported
+       - "Apply Location Changes" button saves all location fields
+   - Each section has its own "Apply" button for independent updates
+   - Changes update the new_title, new_time, and location columns
    - Photo Information table updates immediately
    - Title states:
      - **N/A**: Not set (new_title is null)
      - **(blank)**: Intentionally cleared (new_title is empty string)
      - **value**: Custom title set
 
-3. **Map Provider Selection**:
+4. **Map Provider Selection**:
    - Use the "Map:" dropdown to switch between OpenStreetMap, ESRI World Imagery, and Google Maps
    - Current zoom and center position are maintained
    - Provider selection syncs with Settings and GPX views
@@ -499,8 +528,22 @@ Stores all photo information with the following columns:
 | exif_capture_time | datetime | Capture time from EXIF |
 | creation_time | datetime | File creation time |
 | new_time | datetime | User-modified capture time (None if not set) |
+| exif_offset_time | string | Timezone offset from EXIF (e.g., "+02:00") |
+| new_offset_time | string | User-modified offset time |
+| exif_gps_datestamp | string | GPS date stamp from EXIF (YYYY:MM:DD) |
+| new_gps_datestamp | string | Calculated GPS date (local time - offset) |
+| exif_gps_timestamp | string | GPS time stamp from EXIF (HH:MM:SS) |
+| new_gps_timestamp | string | Calculated GPS time (local time - offset) |
 | exif_image_title | string | ImageDescription from EXIF (cross-platform) |
 | new_title | string | User-modified title (None if not set, "" if cleared) |
+| exif_city | string | City from IPTC tag 2:90 |
+| new_city | string | User-modified or geocoded city |
+| exif_sublocation | string | Sub-location from IPTC tag 2:92 |
+| new_sublocation | string | User-modified or geocoded sub-location |
+| exif_state | string | Province/State from IPTC tag 2:95 |
+| new_state | string | User-modified or geocoded state |
+| exif_country | string | Country from IPTC tag 2:101 |
+| new_country | string | User-modified or geocoded country |
 | exif_latitude | float | GPS latitude from EXIF (-360 if none) |
 | exif_longitude | float | GPS longitude from EXIF (-360 if none) |
 | exif_altitude | float | GPS altitude from EXIF (None if none) |
@@ -559,6 +602,9 @@ Stores GPX track point information with time offset support:
 - `GET /api/photo-thumbnail/{index}` - Get photo thumbnail (with cache-busting)
 - `GET /api/photo-image/{index}` - Get full-size image (with cache-busting)
 - `POST /api/sort` - Set photo sort order
+- `POST /api/photos/{index}/metadata` - Update photo title, timestamp, and location metadata
+- `POST /api/photos/{index}/retrieve-location` - Retrieve location for single photo from GPS
+- `POST /api/retrieve-location` - Bulk retrieve locations (all or tagged photos)
 
 ### GPS & Geotagging
 - `POST /api/photos/{index}/manual-location` - Set manual GPS coordinates and altitude
@@ -591,7 +637,10 @@ Stores GPX track point information with time offset support:
 - `POST /api/export` - Export photos with updated metadata
   - Request body: `{"export_type": "all" | "tagged"}`
   - Updates EXIF GPS coordinates and altitude
+  - Updates EXIF GPS timestamps (GPSDateStamp, GPSTimeStamp)
   - Updates EXIF capture time
+  - Updates EXIF offset time (via exiftool) if exiftool installed
+  - Updates IPTC location metadata (City, Sub-location, State, Country)
   - Sets file creation and modification timestamps (cross-platform)
   - Returns count of exported photos and any failures
   - Returns 409 Conflict if destination files already exist
@@ -603,12 +652,13 @@ geotag/
 ├── app/
 │   ├── __init__.py
 │   ├── server.py            # FastAPI server and routes
-│   ├── photo_manager.py     # Photo scanning and EXIF extraction with altitude
+│   ├── photo_manager.py     # Photo scanning, EXIF/IPTC extraction, geocoding
 │   ├── gpx_manager.py       # GPX file parsing and matching with elevation
 │   ├── positions_manager.py # YAML positions parsing and management
 │   ├── elevation_service.py # Elevation API integration (3 services)
+│   ├── geocoding_service.py # Reverse geocoding (Nominatim, Photon)
 │   ├── config_manager.py    # Configuration file management (YAML)
-│   └── export_manager.py    # Photo export with EXIF and timestamp updates
+│   └── export_manager.py    # Photo export with EXIF/IPTC updates and timestamp handling
 ├── static/
 │   ├── styles.css           # Application styling with modal designs
 │   └── app.js               # Frontend JavaScript with elevation and positions
@@ -711,8 +761,87 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [x] ~~Photo metadata editing~~ ✅ Implemented in v1.3
 - [x] ~~Advanced filtering and search~~ ✅ Implemented in v1.5
 - [x] ~~Export photos with updated metadata~~ ✅ Implemented in v1.6
+- [x] ~~Location metadata management~~ ✅ Implemented in v1.7
 
 ## Recent Updates
+
+### Version 1.7 - Location Metadata Management
+
+**IPTC/XMP Location Extraction**:
+- ✅ Extract location metadata from photos (City, Sub-location, State, Country)
+- ✅ Read IPTC tags: 2:90 (City), 2:92 (Sub-location), 2:95 (State), 2:101 (Country)
+- ✅ Support for XMP fallback when IPTC unavailable
+- ✅ Eight new dataframe columns: exif_* and new_* for each location field
+- ✅ Location data displayed in Photo Information table
+
+**Reverse Geocoding Service**:
+- ✅ GeocodingService class with dual provider support
+- ✅ Nominatim (OpenStreetMap) with 1 req/sec rate limiting
+- ✅ Photon (Komoot) as fast alternative with no rate limits
+- ✅ Automatic failover between providers
+- ✅ SSL certificate verification disabled for corporate proxies
+- ✅ urllib3 warning suppression for cleaner logs
+- ✅ Returns structured data: city, sublocation (neighborhood), state, country
+
+**Bulk Location Retrieval**:
+- ✅ "Retrieve for All Photos" button in Settings view
+- ✅ "Retrieve for Tagged Photos" button in Settings view
+- ✅ Progress feedback with console logging
+- ✅ Automatic rate limiting during bulk operations
+- ✅ Only processes photos with GPS coordinates
+- ✅ Updates new_city, new_sublocation, new_state, new_country columns
+
+**Individual Location Retrieval**:
+- ✅ "Retrieve from GPS" button in Edit Metadata modal
+- ✅ Four input fields for location data
+- ✅ Auto-population from reverse geocoding
+- ✅ Manual entry also supported
+- ✅ "Apply Location Changes" button to save
+- ✅ Displays existing EXIF location data as current value
+
+**Location Export to IPTC**:
+- ✅ Write IPTC location tags when exporting photos
+- ✅ Uses iptcinfo3 library v2.3.0+
+- ✅ Handles corrupt IPTC data with automatic rebuild (force=True fallback)
+- ✅ Preserves existing IPTC data when possible
+- ✅ Silent error handling with stderr suppression
+- ✅ Exports city, sublocation, state, country to IPTC tags
+
+**GPS Timestamp Export**:
+- ✅ Export GPSDateStamp (YYYY:MM:DD format)
+- ✅ Export GPSTimeStamp (rational tuple format)
+- ✅ Calculate GPS time from local time and offset
+- ✅ Automatic calculation: GPS_time = local_time - offset
+- ✅ Proper rational format: ((hours, 1), (minutes, 1), (seconds, 1))
+- ✅ Compatible with PIL/EXIF readers
+
+**Offset Time Export**:
+- ✅ Export OffsetTime, OffsetTimeOriginal, OffsetTimeDigitized
+- ✅ Uses exiftool for writing (piexif doesn't support these tags)
+- ✅ Graceful fallback if exiftool not installed
+- ✅ Silent operation - only reports errors
+- ✅ Automatic detection of exiftool availability
+
+**Technical Implementation**:
+- ✅ GeocodingService with requests library
+- ✅ SSL verification disabled: verify=False for all requests
+- ✅ Context manager for stderr suppression (suppress_stderr)
+- ✅ Multi-level IPTC fallback: force=False → force=True on error
+- ✅ Enhanced PIL IFDRational handling for GPS timestamp reading
+- ✅ Support for multiple GPS timestamp formats from PIL
+- ✅ exiftool subprocess integration with timeout handling
+
+**Bug Fixes**:
+- ✅ Fixed GPSTimeStamp parsing: handles float tuples from PIL
+- ✅ Fixed IPTC encoding errors (illegal dataname '221')
+- ✅ Fixed GPS date/time preservation through EXIF fallback paths
+- ✅ Removed verbose debug logging for clean export output
+- ✅ Suppressed iptcinfo3 error messages to stderr
+
+**Dependencies**:
+- Added iptcinfo3>=2.1.4 for IPTC metadata
+- Added urllib3 for SSL warning suppression
+- External: exiftool (optional, for OffsetTime export)
 
 ### Version 1.6 - Photo Export with Metadata Updates
 

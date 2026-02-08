@@ -18,6 +18,7 @@ from .elevation_service import ElevationService
 from .positions_manager import PositionsManager
 from .config_manager import ConfigManager
 from .export_manager import ExportManager
+from .geocoding_service import GeocodingService
 
 app = FastAPI(title="Geotag Application")
 
@@ -65,10 +66,17 @@ class PhotoMetadataUpdate(BaseModel):
     new_time: Optional[str] = None
     new_title: Optional[str] = None
     new_offset_time: Optional[str] = None
+    new_city: Optional[str] = None
+    new_sublocation: Optional[str] = None
+    new_state: Optional[str] = None
+    new_country: Optional[str] = None
 
 class TimeOffsetRequest(BaseModel):
     offset: str
     mode: str = 'all'  # 'all', 'tagged', or 'not_updated'
+
+class LocationRetrievalRequest(BaseModel):
+    mode: str = 'all'  # 'all' or 'tagged'
 
 class SettingsUpdate(BaseModel):
     map_provider: Optional[str] = None
@@ -101,6 +109,7 @@ photo_manager = PhotoManager()
 gpx_manager = GPXManager()
 elevation_service = ElevationService()
 positions_manager = PositionsManager()
+geocoding_service = GeocodingService()
 
 # Configuration manager (initialized from main.py)
 config_manager: ConfigManager = ConfigManager()
@@ -605,16 +614,58 @@ async def apply_timezone_offset(request: TimeOffsetRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/api/photos/{index}/metadata")
-async def update_photo_metadata(index: int, request: PhotoMetadataUpdate):
+@app.post("/api/retrieve-location")
+async def retrieve_location_bulk(request: LocationRetrievalRequest):
     """
-    Update new_time, new_title, and/or new_offset_time for a specific photo
+    Retrieve location information for all or tagged photos using reverse geocoding
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.retrieve_location_bulk(request.mode, geocoding_service)
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/photos/{index}/retrieve-location")
+async def retrieve_location_single(index: int):
+    """
+    Retrieve location information for a single photo using reverse geocoding
     """
     try:
         if photo_manager.pd_photo_info is None or index >= len(photo_manager.pd_photo_info):
             return {"success": False, "detail": "Invalid photo index"}
         
-        photo_manager.update_photo_metadata(index, request.new_time, request.new_title, gpx_manager, request.new_offset_time)
+        success = photo_manager.retrieve_location_for_photo(index, geocoding_service)
+        
+        if success:
+            # Return the retrieved location data
+            location_data = {
+                'city': photo_manager.pd_photo_info.at[index, 'new_city'],
+                'sublocation': photo_manager.pd_photo_info.at[index, 'new_sublocation'],
+                'state': photo_manager.pd_photo_info.at[index, 'new_state'],
+                'country': photo_manager.pd_photo_info.at[index, 'new_country']
+            }
+            return {"success": True, "location": clean_nan_values(location_data)}
+        else:
+            return {"success": False, "detail": "No valid GPS coordinates or geocoding failed"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/photos/{index}/metadata")
+async def update_photo_metadata(index: int, request: PhotoMetadataUpdate):
+    """
+    Update new_time, new_title, new_offset_time, and/or location fields for a specific photo
+    """
+    try:
+        if photo_manager.pd_photo_info is None or index >= len(photo_manager.pd_photo_info):
+            return {"success": False, "detail": "Invalid photo index"}
+        
+        photo_manager.update_photo_metadata(
+            index, request.new_time, request.new_title, gpx_manager, request.new_offset_time,
+            request.new_city, request.new_sublocation, request.new_state, request.new_country
+        )
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -820,6 +871,17 @@ async def export_photos(request: ExportRequest):
                     final_lon = None
                     final_alt = None
                 
+                # Get location metadata (use new values if available, otherwise EXIF values)
+                city = photo.get('new_city') or photo.get('exif_city')
+                sublocation = photo.get('new_sublocation') or photo.get('exif_sublocation')
+                state = photo.get('new_state') or photo.get('exif_state')
+                country = photo.get('new_country') or photo.get('exif_country')
+                
+                # Get GPS date/time stamps and offset (use new values if available, otherwise EXIF values)
+                gps_datestamp = photo.get('new_gps_datestamp') or photo.get('exif_gps_datestamp')
+                gps_timestamp = photo.get('new_gps_timestamp') or photo.get('exif_gps_timestamp')
+                offset_time = photo.get('new_offset_time') or photo.get('exif_offset_time')
+                
                 # Export the photo
                 success = ExportManager.export_photo(
                     source_path=photo['full_path'],
@@ -828,7 +890,14 @@ async def export_photos(request: ExportRequest):
                     final_lat=final_lat,
                     final_lon=final_lon,
                     final_alt=final_alt,
-                    new_time=new_time
+                    new_time=new_time,
+                    city=city,
+                    sublocation=sublocation,
+                    state=state,
+                    country=country,
+                    gps_datestamp=gps_datestamp,
+                    gps_timestamp=gps_timestamp,
+                    offset_time=offset_time
                 )
                 
                 if success:

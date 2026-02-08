@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from PIL import Image, ImageOps
 from PIL.ExifTags import TAGS, GPSTAGS
+import piexif
 import tempfile
 import os
 from typing import Optional, Dict, Any
@@ -62,6 +63,14 @@ class PhotoManager:
             'new_offset_time': None,
             'exif_image_title': None,
             'new_title': None,
+            'exif_city': None,
+            'exif_sublocation': None,
+            'exif_state': None,
+            'exif_country': None,
+            'new_city': None,
+            'new_sublocation': None,
+            'new_state': None,
+            'new_country': None,
             'exif_latitude': -360.0,
             'exif_longitude': -360.0,
             'exif_altitude': None,
@@ -97,6 +106,11 @@ class PhotoManager:
                         
                         # Extract offset time (timezone)
                         if tag == 'OffsetTime' or tag == 'OffsetTimeOriginal':
+                            if value:
+                                info['exif_offset_time'] = str(value).strip()
+                        
+                        # Also check for numeric offset time tags (36880, 36881, 36882)
+                        if tag_id in [36880, 36881, 36882]:
                             if value:
                                 info['exif_offset_time'] = str(value).strip()
                         
@@ -141,9 +155,22 @@ class PhotoManager:
                                     # GPSTimeStamp is typically a tuple of (hours, minutes, seconds)
                                     time_tuple = gps_data['GPSTimeStamp']
                                     if isinstance(time_tuple, (list, tuple)) and len(time_tuple) >= 3:
-                                        hours = int(time_tuple[0]) if isinstance(time_tuple[0], (int, float)) else int(time_tuple[0][0] / time_tuple[0][1])
-                                        minutes = int(time_tuple[1]) if isinstance(time_tuple[1], (int, float)) else int(time_tuple[1][0] / time_tuple[1][1])
-                                        seconds = int(time_tuple[2]) if isinstance(time_tuple[2], (int, float)) else int(time_tuple[2][0] / time_tuple[2][1])
+                                        # PIL can return either:
+                                        # 1. Floats already converted: (8.0, 34.0, 24.0)
+                                        # 2. IFDRational objects: need different handling
+                                        # 3. Tuples of (numerator, denominator): ((8, 1), (34, 1), (24, 1))
+                                        
+                                        # Try as direct numeric values first
+                                        try:
+                                            hours = int(float(time_tuple[0]))
+                                            minutes = int(float(time_tuple[1]))
+                                            seconds = int(float(time_tuple[2]))
+                                        except (TypeError, AttributeError):
+                                            # If that fails, try as rational tuples
+                                            hours = int(time_tuple[0][0] / time_tuple[0][1])
+                                            minutes = int(time_tuple[1][0] / time_tuple[1][1])
+                                            seconds = int(time_tuple[2][0] / time_tuple[2][1])
+                                        
                                         info['exif_gps_timestamp'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
                                 except:
                                     pass
@@ -173,6 +200,42 @@ class PhotoManager:
                                     info['exif_altitude'] = altitude
                                 except:
                                     pass
+                    
+                    # Extract IPTC location data using piexif
+                    try:
+                        exif_dict = piexif.load(str(file_path))
+                        if '0th' in exif_dict and piexif.ImageIFD.XPKeywords in exif_dict['0th']:
+                            # Check for IPTC data in tag 33723
+                            pass
+                        
+                        # Try to get IPTC from XMP or other sources
+                        # piexif doesn't directly support IPTC, so we'll use PIL's built-in for now
+                        from PIL import IptcImagePlugin
+                        with open(file_path, 'rb') as f:
+                            iptc_data = IptcImagePlugin.getiptcinfo(img)
+                            if iptc_data:
+                                # IPTC City: (2, 90)
+                                if (2, 90) in iptc_data:
+                                    city = iptc_data[(2, 90)]
+                                    info['exif_city'] = city.decode('utf-8', errors='ignore') if isinstance(city, bytes) else str(city)
+                                
+                                # IPTC Sub-location: (2, 92)
+                                if (2, 92) in iptc_data:
+                                    subloc = iptc_data[(2, 92)]
+                                    info['exif_sublocation'] = subloc.decode('utf-8', errors='ignore') if isinstance(subloc, bytes) else str(subloc)
+                                
+                                # IPTC Province/State: (2, 95)
+                                if (2, 95) in iptc_data:
+                                    state = iptc_data[(2, 95)]
+                                    info['exif_state'] = state.decode('utf-8', errors='ignore') if isinstance(state, bytes) else str(state)
+                                
+                                # IPTC Country: (2, 101)
+                                if (2, 101) in iptc_data:
+                                    country = iptc_data[(2, 101)]
+                                    info['exif_country'] = country.decode('utf-8', errors='ignore') if isinstance(country, bytes) else str(country)
+                    except:
+                        pass  # IPTC data not available or error reading it
+                        
         except Exception as e:
             print(f"Error reading EXIF from {file_path}: {e}")
         
@@ -701,9 +764,10 @@ class PhotoManager:
         
         return count
     
-    def update_photo_metadata(self, index: int, new_time: str = None, new_title: str = None, gpx_manager=None, new_offset_time: str = None) -> bool:
+    def update_photo_metadata(self, index: int, new_time: str = None, new_title: str = None, gpx_manager=None, new_offset_time: str = None, 
+                            new_city: str = None, new_sublocation: str = None, new_state: str = None, new_country: str = None) -> bool:
         """
-        Update new_time, new_title, and/or new_offset_time for a specific photo
+        Update new_time, new_title, new_offset_time, and/or location fields for a specific photo
         Also updates GPX matching and regenerates filename when time changes
         Args:
             index: Photo index
@@ -711,6 +775,7 @@ class PhotoManager:
             new_title: Title string or None to keep unchanged
             gpx_manager: GPXManager instance for re-matching photos
             new_offset_time: Offset time string (e.g., "+02:00") or None to keep unchanged
+            new_city, new_sublocation, new_state, new_country: Location strings or None to keep unchanged
         Returns:
             True if successful
         """
@@ -746,6 +811,16 @@ class PhotoManager:
             else:
                 self.pd_photo_info.at[index, 'new_offset_time'] = new_offset_time
                 offset_changed = True
+        
+        # Update location fields  
+        if new_city is not None:
+            self.pd_photo_info.at[index, 'new_city'] = new_city if new_city != "" else None
+        if new_sublocation is not None:
+            self.pd_photo_info.at[index, 'new_sublocation'] = new_sublocation if new_sublocation != "" else None
+        if new_state is not None:
+            self.pd_photo_info.at[index, 'new_state'] = new_state if new_state != "" else None
+        if new_country is not None:
+            self.pd_photo_info.at[index, 'new_country'] = new_country if new_country != "" else None
         
         # Calculate GPS timestamps if time or offset changed
         if time_changed or offset_changed:
@@ -809,6 +884,65 @@ class PhotoManager:
             # Store in EXIF format
             self.pd_photo_info.at[index, 'new_gps_datestamp'] = gps_time.strftime('%Y:%m:%d')
             self.pd_photo_info.at[index, 'new_gps_timestamp'] = gps_time.strftime('%H:%M:%S')
+    
+    def retrieve_location_for_photo(self, index: int, geocoding_service) -> bool:
+        """
+        Retrieve location information for a single photo using reverse geocoding
+        Uses final_latitude and final_longitude
+        Args:
+            index: Photo index
+            geocoding_service: GeocodingService instance
+        Returns:
+            True if location was retrieved successfully
+        """
+        if self.pd_photo_info is None or index >= len(self.pd_photo_info):
+            return False
+        
+        lat = self.pd_photo_info.at[index, 'final_latitude']
+        lon = self.pd_photo_info.at[index, 'final_longitude']
+        
+        if lat == -360.0 or lon == -360.0:
+            return False  # No valid coordinates
+        
+        location = geocoding_service.reverse_geocode(lat, lon)
+        
+        if location:
+            # Update new_* location fields with retrieved data
+            self.pd_photo_info.at[index, 'new_city'] = location.get('city')
+            self.pd_photo_info.at[index, 'new_sublocation'] = location.get('sublocation')
+            self.pd_photo_info.at[index, 'new_state'] = location.get('state')
+            self.pd_photo_info.at[index, 'new_country'] = location.get('country')
+            return True
+        
+        return False
+    
+    def retrieve_location_bulk(self, mode: str, geocoding_service) -> int:
+        """
+        Retrieve location information for multiple photos
+        Args:
+            mode: 'all' or 'tagged'
+            geocoding_service: GeocodingService instance
+        Returns:
+            Count of photos successfully updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        count = 0
+        for index in range(len(self.pd_photo_info)):
+            # Apply filtering based on mode
+            if mode == 'tagged' and not self.pd_photo_info.at[index, 'tagged']:
+                continue
+            
+            # Only retrieve if photo has valid coordinates
+            lat = self.pd_photo_info.at[index, 'final_latitude']
+            lon = self.pd_photo_info.at[index, 'final_longitude']
+            
+            if lat != -360.0 and lon != -360.0:
+                if self.retrieve_location_for_photo(index, geocoding_service):
+                    count += 1
+        
+        return count
     
     def get_filename_format(self) -> str:
         """Get the current filename format"""

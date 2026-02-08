@@ -1281,6 +1281,8 @@ function initializeSettingsView() {
     const applyTimeOffsetNotUpdatedBtn = document.getElementById('apply-time-offset-not-updated');
     const applyTimezoneOffsetAllBtn = document.getElementById('apply-timezone-offset-all');
     const applyTimezoneOffsetTaggedBtn = document.getElementById('apply-timezone-offset-tagged');
+    const retrieveLocationAllBtn = document.getElementById('retrieve-location-all');
+    const retrieveLocationTaggedBtn = document.getElementById('retrieve-location-tagged');
     const mapProviderSelect = document.getElementById('map-provider');
     const elevationServiceSelect = document.getElementById('elevation-service');
     const exportFolderInput = document.getElementById('export-folder-input');
@@ -1299,6 +1301,8 @@ function initializeSettingsView() {
     applyTimeOffsetNotUpdatedBtn.addEventListener('click', applyTimeOffsetNotUpdated);
     applyTimezoneOffsetAllBtn.addEventListener('click', applyTimezoneOffsetAll);
     applyTimezoneOffsetTaggedBtn.addEventListener('click', applyTimezoneOffsetTagged);
+    retrieveLocationAllBtn.addEventListener('click', retrieveLocationAll);
+    retrieveLocationTaggedBtn.addEventListener('click', retrieveLocationTagged);
     
     // Export folder - save on button click
     saveExportFolderBtn.addEventListener('click', async () => {
@@ -1863,6 +1867,64 @@ async function applyTimezoneOffsetTagged() {
     }
 }
 
+async function retrieveLocationAll() {
+    if (!confirm('This will retrieve location information (City, Sub-location, State, Country) from GPS coordinates for all photos that have valid coordinates. This may take some time for large libraries. Continue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/retrieve-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'all' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully retrieved location information for ${result.count} photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error retrieving location information: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error retrieving location:', error);
+        alert('Error retrieving location: ' + error.message);
+    }
+}
+
+async function retrieveLocationTagged() {
+    if (!confirm('This will retrieve location information (City, Sub-location, State, Country) from GPS coordinates for tagged photos only. This may take some time. Continue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/retrieve-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'tagged' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully retrieved location information for ${result.count} tagged photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error retrieving location information: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error retrieving location:', error);
+        alert('Error retrieving location: ' + error.message);
+    }
+}
+
 function displayPreviewResults(previews) {
     const previewResults = document.getElementById('preview-results');
     const previewList = document.createElement('div');
@@ -2119,6 +2181,26 @@ function displayEXIFInfo(photo) {
             label: 'Offset Time',
             current: photo.exif_offset_time || 'N/A',
             new: photo.new_offset_time || (photo.exif_offset_time || 'N/A')
+        },
+        {
+            label: 'City',
+            current: photo.exif_city || 'N/A',
+            new: photo.new_city || (photo.exif_city || 'N/A')
+        },
+        {
+            label: 'Sub-location',
+            current: photo.exif_sublocation || 'N/A',
+            new: photo.new_sublocation || (photo.exif_sublocation || 'N/A')
+        },
+        {
+            label: 'State/Province',
+            current: photo.exif_state || 'N/A',
+            new: photo.new_state || (photo.exif_state || 'N/A')
+        },
+        {
+            label: 'Country',
+            current: photo.exif_country || 'N/A',
+            new: photo.new_country || (photo.exif_country || 'N/A')
         },
         {
             label: 'EXIF Position',
@@ -2953,18 +3035,40 @@ async function editPhotoMetadata() {
     const currentOffset = photo.new_offset_time || photo.exif_offset_time || '';
     const displayOffset = currentOffset ? `Current: ${currentOffset}` : '';
     
+    // Format current location fields
+    const currentCity = photo.new_city || photo.exif_city || '';
+    const currentSublocation = photo.new_sublocation || photo.exif_sublocation || '';
+    const currentState = photo.new_state || photo.exif_state || '';
+    const currentCountry = photo.new_country || photo.exif_country || '';
+    const displayCity = (photo.exif_city || photo.new_city) ? `Current: ${photo.new_city || photo.exif_city}` : '';
+    const displaySublocation = (photo.exif_sublocation || photo.new_sublocation) ? `Current: ${photo.new_sublocation || photo.exif_sublocation}` : '';
+    const displayState = (photo.exif_state || photo.new_state) ? `Current: ${photo.new_state || photo.exif_state}` : '';
+    const displayCountry = (photo.exif_country || photo.new_country) ? `Current: ${photo.new_country || photo.exif_country}` : '';
+    
     // Set values in modal
     document.getElementById('current-time-display').textContent = displayTime;
     document.getElementById('current-offset-display').textContent = displayOffset;
+    document.getElementById('current-city-display').textContent = displayCity;
+    document.getElementById('current-sublocation-display').textContent = displaySublocation;
+    document.getElementById('current-state-display').textContent = displayState;
+    document.getElementById('current-country-display').textContent = displayCountry;
     document.getElementById('edit-photo-title-input').value = currentTitle;
     document.getElementById('edit-photo-time-input').value = formattedTime;
     document.getElementById('edit-offset-time-input').value = currentOffset;
+    document.getElementById('edit-city-input').value = currentCity;
+    document.getElementById('edit-sublocation-input').value = currentSublocation;
+    document.getElementById('edit-state-input').value = currentState;
+    document.getElementById('edit-country-input').value = currentCountry;
     
     // Store current photo index for later use
     state.editingPhotoIndex = photoIndex;
     state.editingOriginalTitle = currentTitle;
     state.editingOriginalTime = currentTime;
     state.editingOriginalOffset = currentOffset;
+    state.editingOriginalCity = currentCity;
+    state.editingOriginalSublocation = currentSublocation;
+    state.editingOriginalState = currentState;
+    state.editingOriginalCountry = currentCountry;
     
     // Show modal
     const modal = document.getElementById('edit-metadata-modal');
@@ -2978,6 +3082,8 @@ function initializeEditMetadataModal() {
     const applyTitleBtn = document.getElementById('apply-title-btn');
     const applyTimeBtn = document.getElementById('apply-time-btn');
     const applyOffsetBtn = document.getElementById('apply-offset-btn');
+    const retrieveLocationBtn = document.getElementById('retrieve-location-btn');
+    const applyLocationBtn = document.getElementById('apply-location-btn');
     
     closeBtn.addEventListener('click', () => {
         modal.classList.remove('active');
@@ -2997,6 +3103,14 @@ function initializeEditMetadataModal() {
     
     applyOffsetBtn.addEventListener('click', async () => {
         await applyOffsetChange();
+    });
+    
+    retrieveLocationBtn.addEventListener('click', async () => {
+        await retrieveSinglePhotoLocation();
+    });
+    
+    applyLocationBtn.addEventListener('click', async () => {
+        await applyLocationChanges();
     });
     
     // Close on background click
@@ -3169,6 +3283,88 @@ async function applyOffsetChange() {
     } catch (error) {
         console.error('Error updating offset time:', error);
         alert('Error updating offset time: ' + error.message);
+    }
+}
+
+async function retrieveSinglePhotoLocation() {
+    if (state.editingPhotoIndex === null) return;
+    
+    try {
+        const response = await fetch(`/api/photos/${state.editingPhotoIndex}/retrieve-location`, {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.location) {
+            // Update input fields with retrieved location
+            const location = result.location;
+            document.getElementById('edit-city-input').value = location.city || '';
+            document.getElementById('edit-sublocation-input').value = location.sublocation || '';
+            document.getElementById('edit-state-input').value = location.state || '';
+            document.getElementById('edit-country-input').value = location.country || '';
+            
+            alert('Location retrieved successfully!');
+        } else {
+            alert('Could not retrieve location: ' + (result.detail || 'No valid GPS coordinates or geocoding failed'));
+        }
+    } catch (error) {
+        console.error('Error retrieving location:', error);
+        alert('Error retrieving location: ' + error.message);
+    }
+}
+
+async function applyLocationChanges() {
+    const newCity = document.getElementById('edit-city-input').value.trim();
+    const newSublocation = document.getElementById('edit-sublocation-input').value.trim();
+    const newState = document.getElementById('edit-state-input').value.trim();
+    const newCountry = document.getElementById('edit-country-input').value.trim();
+    
+    // Check if any location field changed
+    if (newCity === state.editingOriginalCity &&
+        newSublocation === state.editingOriginalSublocation &&
+        newState === state.editingOriginalState &&
+        newCountry === state.editingOriginalCountry) {
+        return;  // No changes
+    }
+    
+    try {
+        const response = await fetch(`/api/photos/${state.editingPhotoIndex}/metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                new_city: newCity || '',
+                new_sublocation: newSublocation || '',
+                new_state: newState || '',
+                new_country: newCountry || ''
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Location updated successfully!');
+            state.editingOriginalCity = newCity;
+            state.editingOriginalSublocation = newSublocation;
+            state.editingOriginalState = newState;
+            state.editingOriginalCountry = newCountry;
+            
+            // Update the photo in state
+            if (state.photos[state.selectedPhotoIndex]) {
+                state.photos[state.selectedPhotoIndex].new_city = newCity || null;
+                state.photos[state.selectedPhotoIndex].new_sublocation = newSublocation || null;
+                state.photos[state.selectedPhotoIndex].new_state = newState || null;
+                state.photos[state.selectedPhotoIndex].new_country = newCountry || null;
+            }
+            
+            // Refresh the display
+            await displayLargePhoto(state.selectedPhotoIndex);
+        } else {
+            alert('Error updating location: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error updating location:', error);
+        alert('Error updating location: ' + error.message);
     }
 }
 

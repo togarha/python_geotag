@@ -2,13 +2,16 @@
 Photo export functionality with EXIF and file attribute updates
 """
 import os
+import sys
 import shutil
 import platform
 import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+from contextlib import contextmanager
 import piexif
+from iptcinfo3 import IPTCInfo
 
 # Windows-specific imports for setting creation time
 if platform.system() == 'Windows':
@@ -23,6 +26,18 @@ else:
     WINDOWS_TIMESTAMP_SUPPORT = False
 
 
+@contextmanager
+def suppress_stderr():
+    """Context manager to temporarily suppress stderr output"""
+    original_stderr = sys.stderr
+    try:
+        sys.stderr = open(os.devnull, 'w')
+        yield
+    finally:
+        sys.stderr.close()
+        sys.stderr = original_stderr
+
+
 class ExportManager:
     """Manages photo export with metadata updates"""
     
@@ -30,7 +45,11 @@ class ExportManager:
     def export_photo(source_path: str, dest_folder: str, new_filename: str,
                     final_lat: Optional[float] = None, final_lon: Optional[float] = None, 
                     final_alt: Optional[float] = None,
-                    new_time: Optional[datetime] = None) -> bool:
+                    new_time: Optional[datetime] = None,
+                    city: Optional[str] = None, sublocation: Optional[str] = None,
+                    state: Optional[str] = None, country: Optional[str] = None,
+                    gps_datestamp: Optional[str] = None, gps_timestamp: Optional[str] = None,
+                    offset_time: Optional[str] = None) -> bool:
         """
         Export a photo with updated EXIF and file attributes
         
@@ -42,6 +61,13 @@ class ExportManager:
             final_lon: Final longitude (or None to keep original)
             final_alt: Final altitude (or None to keep original)
             new_time: New capture time (or None to keep original)
+            city: City for IPTC metadata
+            sublocation: Sub-location for IPTC metadata
+            state: State/Province for IPTC metadata
+            country: Country for IPTC metadata
+            gps_datestamp: GPS date stamp (YYYY:MM:DD)
+            gps_timestamp: GPS time stamp (HH:MM:SS)
+            offset_time: Timezone offset (+HH:MM or -HH:MM)
             
         Returns:
             True if export successful, False otherwise
@@ -58,7 +84,9 @@ class ExportManager:
             shutil.copy(source_path, dest_file)
             
             # Update EXIF data (this will re-save the file, potentially resetting timestamps)
-            ExportManager._update_exif(str(dest_file), final_lat, final_lon, final_alt, new_time)
+            ExportManager._update_exif(str(dest_file), final_lat, final_lon, final_alt, new_time,
+                                      city, sublocation, state, country,
+                                      gps_datestamp, gps_timestamp, offset_time)
             
             # Update file timestamps AFTER EXIF update (if new_time is provided)
             if new_time:
@@ -72,8 +100,14 @@ class ExportManager:
     
     @staticmethod
     def _update_exif(file_path: str, latitude: Optional[float], longitude: Optional[float], 
-                    altitude: Optional[float], capture_time: Optional[datetime]):
-        """Update EXIF data in the exported photo without recompressing the image"""
+                    altitude: Optional[float], capture_time: Optional[datetime],
+                    city: Optional[str] = None, sublocation: Optional[str] = None,
+                    state: Optional[str] = None, country: Optional[str] = None,
+                    gps_datestamp: Optional[str] = None, gps_timestamp: Optional[str] = None,
+                    offset_time: Optional[str] = None):
+        """
+        Update EXIF data and IPTC location metadata in the exported photo without recompressing the image
+        """
         try:
             # Load existing EXIF directly from file
             try:
@@ -117,6 +151,22 @@ class ExportManager:
                     gps_ifd[piexif.GPSIFD.GPSAltitude] = alt_rational
                     gps_ifd[piexif.GPSIFD.GPSAltitudeRef] = 0 if altitude >= 0 else 1
                 
+                # Add GPS date/time stamps if provided
+                if gps_datestamp:
+                    gps_ifd[piexif.GPSIFD.GPSDateStamp] = gps_datestamp.encode('ascii')
+                
+                if gps_timestamp:
+                    # Parse HH:MM:SS and convert to rational tuple format
+                    try:
+                        parts = gps_timestamp.split(':')
+                        if len(parts) == 3:
+                            hours = (int(parts[0]), 1)
+                            minutes = (int(parts[1]), 1)
+                            seconds = (int(parts[2]), 1)
+                            gps_ifd[piexif.GPSIFD.GPSTimeStamp] = (hours, minutes, seconds)
+                    except Exception as e:
+                        print(f"Warning: Error parsing GPS timestamp: {e}")
+                
                 exif_dict["GPS"] = gps_ifd
             
             # Update capture time if provided
@@ -132,33 +182,147 @@ class ExportManager:
                 zeroth_ifd[piexif.ImageIFD.DateTime] = time_str.encode('utf-8')
                 exif_dict["0th"] = zeroth_ifd
             
+            # Note: OffsetTime tags (36880, 36881, 36882) are not supported by piexif
+            # They will be written separately using exiftool after main EXIF is complete
+            
             # Insert updated EXIF into the file without recompressing the image
             try:
                 exif_bytes = piexif.dump(exif_dict)
                 piexif.insert(exif_bytes, file_path)
             except Exception as dump_error:
-                # If dump fails, try removing all EXIF and inserting only our changes
-                print(f"Warning: EXIF dump failed ({dump_error}), rebuilding EXIF from scratch")
-                # Remove all existing EXIF
-                piexif.remove(file_path)
-                # Create minimal EXIF dict with only our changes
-                minimal_exif = {"0th": {}, "Exif": {}, "GPS": {}}
+                # If dump fails, try fallback with minimal EXIF
+                print(f"Warning: EXIF dump failed ({dump_error}), trying fallback")
                 
-                # Re-apply our changes to the minimal dict
-                if latitude is not None and longitude is not None and latitude != -360 and longitude != -360:
-                    minimal_exif["GPS"] = exif_dict.get("GPS", {})
-                if capture_time:
-                    minimal_exif["Exif"] = {k: v for k, v in exif_dict.get("Exif", {}).items() 
-                                           if k in [piexif.ExifIFD.DateTimeOriginal, piexif.ExifIFD.DateTimeDigitized]}
-                    minimal_exif["0th"] = {k: v for k, v in exif_dict.get("0th", {}).items() 
-                                          if k in [piexif.ImageIFD.DateTime]}
-                
-                # Try inserting the minimal EXIF
-                exif_bytes = piexif.dump(minimal_exif)
-                piexif.insert(exif_bytes, file_path)
+                try:
+                    # Try removing problematic EXIF tags
+                    exif_bytes = piexif.dump(exif_dict)
+                    piexif.insert(exif_bytes, file_path)
+                except Exception as second_error:
+                    # If still failing, rebuild from scratch
+                    print(f"Warning: EXIF dump still failed ({second_error}), rebuilding EXIF from scratch")
+                    piexif.remove(file_path)
+                    
+                    # Create minimal EXIF dict with all important fields
+                    minimal_exif = {"0th": {}, "Exif": {}, "GPS": {}}
+                    
+                    # Copy ALL GPS data (including date/time stamps)
+                    if latitude is not None and longitude is not None and latitude != -360 and longitude != -360:
+                        minimal_exif["GPS"] = exif_dict.get("GPS", {})
+                    
+                    # Copy datetime fields (but NOT offset time)
+                    if capture_time:
+                        exif_ifd = exif_dict.get("Exif", {})
+                        minimal_exif["Exif"] = {
+                            k: v for k, v in exif_ifd.items() 
+                            if k in [piexif.ExifIFD.DateTimeOriginal, piexif.ExifIFD.DateTimeDigitized]
+                        }
+                        
+                        zeroth_ifd = exif_dict.get("0th", {})
+                        minimal_exif["0th"] = {
+                            k: v for k, v in zeroth_ifd.items() 
+                            if k in [piexif.ImageIFD.DateTime]
+                        }
+                    
+                    # Insert the minimal EXIF
+                    exif_bytes = piexif.dump(minimal_exif)
+                    piexif.insert(exif_bytes, file_path)
+            
+            # Update IPTC location metadata if any location field is provided
+            if any([city, sublocation, state, country]):
+                try:
+                    # Try to load existing IPTC data first
+                    try:
+                        with suppress_stderr():
+                            iptc = IPTCInfo(file_path, force=False)
+                            
+                            # Set location fields
+                            if city and city.strip():
+                                iptc['city'] = city
+                            if sublocation and sublocation.strip():
+                                iptc['sub-location'] = sublocation
+                            if state and state.strip():
+                                iptc['province/state'] = state
+                            if country and country.strip():
+                                iptc['country/primary location name'] = country
+                            
+                            # Try to save - this may fail if IPTC data is corrupt
+                            iptc.save()
+                    except:
+                        # If loading or saving fails (corrupt IPTC data), rebuild from scratch
+                        with suppress_stderr():
+                            iptc = IPTCInfo(file_path, force=True)
+                            
+                            # Set location fields again
+                            if city and city.strip():
+                                iptc['city'] = city
+                            if sublocation and sublocation.strip():
+                                iptc['sub-location'] = sublocation
+                            if state and state.strip():
+                                iptc['province/state'] = state
+                            if country and country.strip():
+                                iptc['country/primary location name'] = country
+                            
+                            # Save with fresh IPTC data
+                            iptc.save()
+                except Exception as iptc_error:
+                    # IPTC writing is optional - don't fail the entire export if it doesn't work
+                    pass
+            
+            # Try to write offset time using exiftool if available (piexif doesn't support it)
+            if offset_time:
+                ExportManager._write_offset_time_exiftool(file_path, offset_time)
             
         except Exception as e:
             print(f"Error updating EXIF for {file_path}: {e}")
+    
+    @staticmethod
+    def _write_offset_time_exiftool(file_path: str, offset_time: str):
+        """
+        Write OffsetTime EXIF tags using exiftool (piexif doesn't support these tags)
+        Falls back gracefully if exiftool is not available
+        """
+        try:
+            # Check if exiftool is available
+            result = subprocess.run(
+                ['exiftool', '-ver'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode != 0:
+                print(f"exiftool not available, skipping OffsetTime export")
+                return
+            
+            # Write all three offset time tags using exiftool
+            # -overwrite_original avoids creating backup files
+            cmd = [
+                'exiftool',
+                '-overwrite_original',
+                f'-OffsetTime={offset_time}',
+                f'-OffsetTimeOriginal={offset_time}',
+                f'-OffsetTimeDigitized={offset_time}',
+                file_path
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            # Only report errors, not success
+            if result.returncode != 0:
+                print(f"Warning: exiftool failed: {result.stderr}")
+                
+        except FileNotFoundError:
+            # exiftool not installed, skip silently
+            pass
+        except subprocess.TimeoutExpired:
+            print(f"Warning: exiftool timed out")
+        except Exception as e:
+            print(f"Warning: Error writing OffsetTime: {e}")
     
     @staticmethod
     def _set_file_times(file_path: Path, timestamp: datetime):

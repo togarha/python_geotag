@@ -231,6 +231,16 @@
                 </div>
                 
                 <div class="settings-section">
+                    <h3>Location Retrieval</h3>
+                    <div class="setting-item">
+                        <label>Retrieve location information from GPS coordinates:</label>
+                        <button id="retrieve-location-all" class="btn btn-primary">Retrieve for All</button>
+                        <button id="retrieve-location-tagged" class="btn btn-success">Retrieve for Tagged</button>
+                    </div>
+                    <p class="help-text">Automatically retrieve City, Sub-location, State/Province, and Country information from GPS coordinates using reverse geocoding. Requires photos to have valid GPS coordinates.</p>
+                </div>
+                
+                <div class="settings-section">
                     <h3>Map & Elevation Settings</h3>
                     <div class="setting-item">
                         <label for="map-provider">Map Provider:</label>
@@ -422,6 +432,36 @@
                     </div>
                     <small class="form-help">Format: +HH:MM or -HH:MM (e.g., +02:00, -05:00). Clear to remove offset</small>
                 </div>
+                
+                <!-- Location Information -->
+                <div class="form-section-header">
+                    <h4>Location Information</h4>
+                    <button id="retrieve-location-btn" class="btn btn-secondary btn-sm">Retrieve from GPS</button>
+                </div>
+                <div class="form-group">
+                    <label for="edit-city-input">City:</label>
+                    <div id="current-city-display" class="current-value-display"></div>
+                    <input type="text" id="edit-city-input" class="form-control" placeholder="Enter city">
+                </div>
+                <div class="form-group">
+                    <label for="edit-sublocation-input">Sub-location:</label>
+                    <div id="current-sublocation-display" class="current-value-display"></div>
+                    <input type="text" id="edit-sublocation-input" class="form-control" placeholder="Enter sub-location">
+                </div>
+                <div class="form-group">
+                    <label for="edit-state-input">State/Province:</label>
+                    <div id="current-state-display" class="current-value-display"></div>
+                    <input type="text" id="edit-state-input" class="form-control" placeholder="Enter state/province">
+                </div>
+                <div class="form-group">
+                    <label for="edit-country-input">Country:</label>
+                    <div id="current-country-display" class="current-value-display"></div>
+                    <input type="text" id="edit-country-input" class="form-control" placeholder="Enter country">
+                </div>
+                <div class="form-group">
+                    <button id="apply-location-btn" class="btn btn-primary">Apply Location Changes</button>
+                </div>
+                
                 <div class="modal-actions">
                     <button id="close-metadata-modal-btn" class="btn btn-secondary">Close</button>
                 </div>

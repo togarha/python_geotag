@@ -64,6 +64,7 @@ class PhotoTitleRequest(BaseModel):
 class PhotoMetadataUpdate(BaseModel):
     new_time: Optional[str] = None
     new_title: Optional[str] = None
+    new_offset_time: Optional[str] = None
 
 class TimeOffsetRequest(BaseModel):
     offset: str
@@ -213,7 +214,7 @@ async def get_photos(filter_type: str = "all"):
         df_with_index.rename(columns={'index': 'original_index'}, inplace=True)
         
         # Convert datetime columns to string for JSON serialization
-        for col in ['exif_capture_time', 'creation_time']:
+        for col in ['exif_capture_time', 'creation_time', 'new_time']:
             if col in df_with_index.columns:
                 df_with_index[col] = df_with_index[col].apply(
                     lambda x: x.isoformat() if pd.notna(x) else None
@@ -590,16 +591,30 @@ async def apply_time_offset(request: TimeOffsetRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.post("/api/apply-timezone-offset")
+async def apply_timezone_offset(request: TimeOffsetRequest):
+    """
+    Apply a timezone offset to all or tagged photos and calculate GPS timestamps
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.apply_timezone_offset(request.offset, request.mode)
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/api/photos/{index}/metadata")
 async def update_photo_metadata(index: int, request: PhotoMetadataUpdate):
     """
-    Update new_time and/or new_title for a specific photo
+    Update new_time, new_title, and/or new_offset_time for a specific photo
     """
     try:
         if photo_manager.pd_photo_info is None or index >= len(photo_manager.pd_photo_info):
             return {"success": False, "detail": "Invalid photo index"}
         
-        photo_manager.update_photo_metadata(index, request.new_time, request.new_title, gpx_manager)
+        photo_manager.update_photo_metadata(index, request.new_time, request.new_title, gpx_manager, request.new_offset_time)
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

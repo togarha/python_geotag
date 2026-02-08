@@ -1279,6 +1279,8 @@ function initializeSettingsView() {
     const applyTimeOffsetAllBtn = document.getElementById('apply-time-offset-all');
     const applyTimeOffsetTaggedBtn = document.getElementById('apply-time-offset-tagged');
     const applyTimeOffsetNotUpdatedBtn = document.getElementById('apply-time-offset-not-updated');
+    const applyTimezoneOffsetAllBtn = document.getElementById('apply-timezone-offset-all');
+    const applyTimezoneOffsetTaggedBtn = document.getElementById('apply-timezone-offset-tagged');
     const mapProviderSelect = document.getElementById('map-provider');
     const elevationServiceSelect = document.getElementById('elevation-service');
     const exportFolderInput = document.getElementById('export-folder-input');
@@ -1295,6 +1297,8 @@ function initializeSettingsView() {
     applyTimeOffsetAllBtn.addEventListener('click', applyTimeOffsetAll);
     applyTimeOffsetTaggedBtn.addEventListener('click', applyTimeOffsetTagged);
     applyTimeOffsetNotUpdatedBtn.addEventListener('click', applyTimeOffsetNotUpdated);
+    applyTimezoneOffsetAllBtn.addEventListener('click', applyTimezoneOffsetAll);
+    applyTimezoneOffsetTaggedBtn.addEventListener('click', applyTimezoneOffsetTagged);
     
     // Export folder - save on button click
     saveExportFolderBtn.addEventListener('click', async () => {
@@ -1773,6 +1777,92 @@ async function applyTimeOffsetNotUpdated() {
     }
 }
 
+async function applyTimezoneOffsetAll() {
+    const offset = document.getElementById('timezone-offset').value.trim();
+    
+    if (!offset) {
+        alert('Please enter a timezone offset (e.g., +01:00 or -05:30).');
+        return;
+    }
+    
+    // Validate format: +/-HH:MM
+    const regex = /^[+-]\d{2}:\d{2}$/;
+    if (!offset.match(regex)) {
+        alert('Invalid format. Please use ±HH:MM (e.g., +01:00 or -05:30).');
+        return;
+    }
+    
+    if (!confirm(`This will set timezone offset "${offset}" for all photos and calculate GPS timestamps. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-timezone-offset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offset, mode: 'all' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully applied timezone offset to ${result.count} photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying timezone offset: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying timezone offset:', error);
+        alert('Error applying timezone offset: ' + error.message);
+    }
+}
+
+async function applyTimezoneOffsetTagged() {
+    const offset = document.getElementById('timezone-offset').value.trim();
+    
+    if (!offset) {
+        alert('Please enter a timezone offset (e.g., +01:00 or -05:30).');
+        return;
+    }
+    
+    // Validate format: +/-HH:MM
+    const regex = /^[+-]\d{2}:\d{2}$/;
+    if (!offset.match(regex)) {
+        alert('Invalid format. Please use ±HH:MM (e.g., +01:00 or -05:30).');
+        return;
+    }
+    
+    if (!confirm(`This will set timezone offset "${offset}" for tagged photos and calculate GPS timestamps. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-timezone-offset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offset, mode: 'tagged' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully applied timezone offset to ${result.count} tagged photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying timezone offset: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying timezone offset:', error);
+        alert('Error applying timezone offset: ' + error.message);
+    }
+}
+
 function displayPreviewResults(previews) {
     const previewResults = document.getElementById('preview-results');
     const previewList = document.createElement('div');
@@ -1986,6 +2076,19 @@ function displayEXIFInfo(photo) {
         }
     };
     
+    // Combine GPS date and time stamps into datetime format
+    const formatGPSDateTime = (datestamp, timestamp) => {
+        if (!datestamp || !timestamp) return 'N/A';
+        try {
+            // Convert "YYYY:MM:DD" to "YYYY-MM-DD"
+            const date = datestamp.replace(/:/g, '-');
+            // Combine with timestamp which is already "HH:MM:SS"
+            return `${date} ${timestamp}`;
+        } catch {
+            return 'N/A';
+        }
+    };
+    
     const rows = [
         {
             label: 'Filename',
@@ -2006,6 +2109,16 @@ function displayEXIFInfo(photo) {
             label: 'EXIF Capture Time',
             current: formatDateTime(photo.exif_capture_time),
             new: formatDateTime(photo.new_time) + formatTimeDiff(photo.exif_capture_time, photo.new_time)
+        },
+        {
+            label: 'GPS Date/Time Stamp',
+            current: formatGPSDateTime(photo.exif_gps_datestamp, photo.exif_gps_timestamp),
+            new: formatGPSDateTime(photo.new_gps_datestamp || photo.exif_gps_datestamp, photo.new_gps_timestamp || photo.exif_gps_timestamp)
+        },
+        {
+            label: 'Offset Time',
+            current: photo.exif_offset_time || 'N/A',
+            new: photo.new_offset_time || (photo.exif_offset_time || 'N/A')
         },
         {
             label: 'EXIF Position',
@@ -2836,15 +2949,22 @@ async function editPhotoMetadata() {
         }
     }
     
+    // Format current offset time
+    const currentOffset = photo.new_offset_time || photo.exif_offset_time || '';
+    const displayOffset = currentOffset ? `Current: ${currentOffset}` : '';
+    
     // Set values in modal
     document.getElementById('current-time-display').textContent = displayTime;
+    document.getElementById('current-offset-display').textContent = displayOffset;
     document.getElementById('edit-photo-title-input').value = currentTitle;
     document.getElementById('edit-photo-time-input').value = formattedTime;
+    document.getElementById('edit-offset-time-input').value = currentOffset;
     
     // Store current photo index for later use
     state.editingPhotoIndex = photoIndex;
     state.editingOriginalTitle = currentTitle;
     state.editingOriginalTime = currentTime;
+    state.editingOriginalOffset = currentOffset;
     
     // Show modal
     const modal = document.getElementById('edit-metadata-modal');
@@ -2857,6 +2977,7 @@ function initializeEditMetadataModal() {
     const closeModalBtn = document.getElementById('close-metadata-modal-btn');
     const applyTitleBtn = document.getElementById('apply-title-btn');
     const applyTimeBtn = document.getElementById('apply-time-btn');
+    const applyOffsetBtn = document.getElementById('apply-offset-btn');
     
     closeBtn.addEventListener('click', () => {
         modal.classList.remove('active');
@@ -2872,6 +2993,10 @@ function initializeEditMetadataModal() {
     
     applyTimeBtn.addEventListener('click', async () => {
         await applyTimeChange();
+    });
+    
+    applyOffsetBtn.addEventListener('click', async () => {
+        await applyOffsetChange();
     });
     
     // Close on background click
@@ -2991,6 +3116,59 @@ async function applyTimeChange() {
     } catch (error) {
         console.error('Error updating time:', error);
         alert('Error updating time: ' + error.message);
+    }
+}
+
+async function applyOffsetChange() {
+    const newOffsetValue = document.getElementById('edit-offset-time-input').value.trim();
+    
+    // Only update if changed
+    if (newOffsetValue === state.editingOriginalOffset) {
+        return;
+    }
+    
+    let updateData = {};
+    
+    if (newOffsetValue === '') {
+        updateData.new_offset_time = '';  // Clear offset
+    } else {
+        // Validate offset format: +HH:MM or -HH:MM
+        const regex = /^[+-]\d{2}:\d{2}$/;
+        
+        if (!regex.test(newOffsetValue)) {
+            alert('Invalid offset format. Please use: +HH:MM or -HH:MM\\nExample: +02:00, -05:00');
+            return;
+        }
+        
+        updateData.new_offset_time = newOffsetValue;
+    }
+    
+    try {
+        const response = await fetch(`/api/photos/${state.editingPhotoIndex}/metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Offset time updated successfully!');
+            state.editingOriginalOffset = updateData.new_offset_time || '';
+            
+            // Update the photo in state directly
+            if (state.photos[state.selectedPhotoIndex]) {
+                state.photos[state.selectedPhotoIndex].new_offset_time = updateData.new_offset_time || null;
+            }
+            
+            // Refresh the display
+            await displayLargePhoto(state.selectedPhotoIndex);
+        } else {
+            alert('Error updating offset time: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error updating offset time:', error);
+        alert('Error updating offset time: ' + error.message);
     }
 }
 

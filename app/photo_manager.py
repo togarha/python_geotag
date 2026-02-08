@@ -54,6 +54,12 @@ class PhotoManager:
             'exif_capture_time': None,
             'creation_time': datetime.fromtimestamp(file_path.stat().st_ctime),
             'new_time': None,
+            'exif_gps_datestamp': None,
+            'exif_gps_timestamp': None,
+            'exif_offset_time': None,
+            'new_gps_datestamp': None,
+            'new_gps_timestamp': None,
+            'new_offset_time': None,
             'exif_image_title': None,
             'new_title': None,
             'exif_latitude': -360.0,
@@ -89,6 +95,11 @@ class PhotoManager:
                             except:
                                 pass
                         
+                        # Extract offset time (timezone)
+                        if tag == 'OffsetTime' or tag == 'OffsetTimeOriginal':
+                            if value:
+                                info['exif_offset_time'] = str(value).strip()
+                        
                         # Extract image title - prioritize ImageDescription for cross-platform compatibility
                         if tag == 'ImageDescription':
                             if value and str(value).strip():
@@ -120,6 +131,22 @@ class PhotoManager:
                             for gps_tag_id in value:
                                 gps_tag = GPSTAGS.get(gps_tag_id, gps_tag_id)
                                 gps_data[gps_tag] = value[gps_tag_id]
+                            
+                            # Extract GPS Date and Time stamps
+                            if 'GPSDateStamp' in gps_data:
+                                info['exif_gps_datestamp'] = str(gps_data['GPSDateStamp']).strip()
+                            
+                            if 'GPSTimeStamp' in gps_data:
+                                try:
+                                    # GPSTimeStamp is typically a tuple of (hours, minutes, seconds)
+                                    time_tuple = gps_data['GPSTimeStamp']
+                                    if isinstance(time_tuple, (list, tuple)) and len(time_tuple) >= 3:
+                                        hours = int(time_tuple[0]) if isinstance(time_tuple[0], (int, float)) else int(time_tuple[0][0] / time_tuple[0][1])
+                                        minutes = int(time_tuple[1]) if isinstance(time_tuple[1], (int, float)) else int(time_tuple[1][0] / time_tuple[1][1])
+                                        seconds = int(time_tuple[2]) if isinstance(time_tuple[2], (int, float)) else int(time_tuple[2][0] / time_tuple[2][1])
+                                        info['exif_gps_timestamp'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                                except:
+                                    pass
                             
                             # Convert GPS coordinates
                             lat = self._get_decimal_coordinates(
@@ -613,15 +640,77 @@ class PhotoManager:
         
         return count
     
-    def update_photo_metadata(self, index: int, new_time: str = None, new_title: str = None, gpx_manager=None) -> bool:
+    def apply_timezone_offset(self, offset_str: str, mode: str = 'all') -> int:
         """
-        Update new_time and/or new_title for a specific photo
+        Apply a timezone offset to photos and calculate GPS timestamps
+        Sets new_offset_time and calculates new_gps_datestamp and new_gps_timestamp
+        GPS timestamp = (new_time or exif_capture_time) - offset_time
+        Args:
+            offset_str: Timezone offset in format '+HH:MM' or '-HH:MM'
+            mode: 'all' or 'tagged'
+        Returns:
+            Count of photos updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        # Parse offset string
+        import re
+        from datetime import timedelta
+        
+        match = re.match(r'^([+-])(\d{2}):(\d{2})$', offset_str)
+        if not match:
+            raise ValueError('Invalid offset format. Use ±HH:MM')
+        
+        sign = match.group(1)
+        hours = int(match.group(2))
+        minutes = int(match.group(3))
+        
+        # Calculate total offset in seconds
+        offset_seconds = hours * 3600 + minutes * 60
+        if sign == '-':
+            offset_seconds = -offset_seconds
+        
+        offset_delta = timedelta(seconds=offset_seconds)
+        
+        count = 0
+        for index in range(len(self.pd_photo_info)):
+            # Apply filtering based on mode
+            if mode == 'tagged' and not self.pd_photo_info.at[index, 'tagged']:
+                continue
+            
+            # Set the offset time
+            self.pd_photo_info.at[index, 'new_offset_time'] = offset_str
+            
+            # Calculate GPS timestamp: local_time - offset_time = GPS_time
+            # Use new_time if available, otherwise use exif_capture_time
+            local_time = self.pd_photo_info.at[index, 'new_time']
+            if local_time is None or pd.isna(local_time):
+                local_time = self.pd_photo_info.at[index, 'exif_capture_time']
+            
+            if local_time is not None and not pd.isna(local_time):
+                gps_time = local_time - offset_delta
+                
+                # Store GPS date and time stamps in EXIF format
+                # GPSDateStamp: "YYYY:MM:DD"
+                # GPSTimeStamp: "HH:MM:SS"
+                self.pd_photo_info.at[index, 'new_gps_datestamp'] = gps_time.strftime('%Y:%m:%d')
+                self.pd_photo_info.at[index, 'new_gps_timestamp'] = gps_time.strftime('%H:%M:%S')
+                
+                count += 1
+        
+        return count
+    
+    def update_photo_metadata(self, index: int, new_time: str = None, new_title: str = None, gpx_manager=None, new_offset_time: str = None) -> bool:
+        """
+        Update new_time, new_title, and/or new_offset_time for a specific photo
         Also updates GPX matching and regenerates filename when time changes
         Args:
             index: Photo index
             new_time: ISO format datetime string or None to keep unchanged
             new_title: Title string or None to keep unchanged
             gpx_manager: GPXManager instance for re-matching photos
+            new_offset_time: Offset time string (e.g., "+02:00") or None to keep unchanged
         Returns:
             True if successful
         """
@@ -630,6 +719,7 @@ class PhotoManager:
         
         title_changed = False
         time_changed = False
+        offset_changed = False
         
         if new_time is not None:
             if new_time == "":  # Empty string means clear/set to None
@@ -649,6 +739,18 @@ class PhotoManager:
             self.pd_photo_info.at[index, 'new_title'] = new_title
             title_changed = True
         
+        if new_offset_time is not None:
+            if new_offset_time == "":  # Empty string means clear/set to None
+                self.pd_photo_info.at[index, 'new_offset_time'] = None
+                offset_changed = True
+            else:
+                self.pd_photo_info.at[index, 'new_offset_time'] = new_offset_time
+                offset_changed = True
+        
+        # Calculate GPS timestamps if time or offset changed
+        if time_changed or offset_changed:
+            self._calculate_gps_timestamp(index)
+        
         # Re-match with GPX if time changed
         if time_changed and gpx_manager:
             self.match_single_photo_with_gpx(index, gpx_manager, use_new_time=True)
@@ -661,6 +763,52 @@ class PhotoManager:
             # The user can preview/apply format to check for duplicates
         
         return True
+    
+    def _calculate_gps_timestamp(self, index: int):
+        """
+        Calculate GPS timestamp from local time and timezone offset
+        GPS timestamp = (new_time or exif_capture_time) - offset_time
+        Sets new_gps_datestamp and new_gps_timestamp
+        """
+        import re
+        from datetime import timedelta
+        
+        # Get offset time
+        offset_str = self.pd_photo_info.at[index, 'new_offset_time']
+        if offset_str is None or pd.isna(offset_str):
+            # Clear GPS timestamps if no offset
+            self.pd_photo_info.at[index, 'new_gps_datestamp'] = None
+            self.pd_photo_info.at[index, 'new_gps_timestamp'] = None
+            return
+        
+        # Parse offset string (±HH:MM format)
+        match = re.match(r'^([+-])(\d{2}):(\d{2})$', offset_str)
+        if not match:
+            return  # Invalid format, skip calculation
+        
+        sign = match.group(1)
+        hours = int(match.group(2))
+        minutes = int(match.group(3))
+        
+        # Calculate total offset in seconds
+        offset_seconds = hours * 3600 + minutes * 60
+        if sign == '-':
+            offset_seconds = -offset_seconds
+        
+        offset_delta = timedelta(seconds=offset_seconds)
+        
+        # Get local time (prefer new_time, fallback to exif_capture_time)
+        local_time = self.pd_photo_info.at[index, 'new_time']
+        if local_time is None or pd.isna(local_time):
+            local_time = self.pd_photo_info.at[index, 'exif_capture_time']
+        
+        if local_time is not None and not pd.isna(local_time):
+            # Calculate GPS time
+            gps_time = local_time - offset_delta
+            
+            # Store in EXIF format
+            self.pd_photo_info.at[index, 'new_gps_datestamp'] = gps_time.strftime('%Y:%m:%d')
+            self.pd_photo_info.at[index, 'new_gps_timestamp'] = gps_time.strftime('%H:%M:%S')
     
     def get_filename_format(self) -> str:
         """Get the current filename format"""

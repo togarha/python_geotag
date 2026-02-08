@@ -220,6 +220,17 @@
                 </div>
                 
                 <div class="settings-section">
+                    <h3>Timezone Offset</h3>
+                    <div class="setting-item">
+                        <label for="timezone-offset">Offset Time (±HH:MM):</label>
+                        <input type="text" id="timezone-offset" placeholder="+02:00 or -05:00" class="format-input">
+                        <button id="apply-timezone-offset-all" class="btn btn-primary">Apply to All</button>
+                        <button id="apply-timezone-offset-tagged" class="btn btn-success">Apply to Tagged</button>
+                    </div>
+                    <p class="help-text">Set timezone offset for photos. Format: +HH:MM or -HH:MM (e.g., +02:00, -05:00). This will also calculate GPS Date/Time stamps based on the photo time minus this offset.</p>
+                </div>
+                
+                <div class="settings-section">
                     <h3>Map & Elevation Settings</h3>
                     <div class="setting-item">
                         <label for="map-provider">Map Provider:</label>
@@ -401,6 +412,15 @@
                         <button id="apply-time-btn" class="btn btn-primary btn-inline">Apply</button>
                     </div>
                     <small class="form-help">Format: YYYY-MM-DD HH:MM:SS (e.g., 2026-01-21 23:24:50). Clear to remove custom time</small>
+                </div>
+                <div class="form-group">
+                    <label for="edit-offset-time-input">Offset Time (Timezone):</label>
+                    <div id="current-offset-display" class="current-value-display"></div>
+                    <div class="form-group-inline">
+                        <input type="text" id="edit-offset-time-input" class="form-control" placeholder="+HH:MM or -HH:MM">
+                        <button id="apply-offset-btn" class="btn btn-primary btn-inline">Apply</button>
+                    </div>
+                    <small class="form-help">Format: +HH:MM or -HH:MM (e.g., +02:00, -05:00). Clear to remove offset</small>
                 </div>
                 <div class="modal-actions">
                     <button id="close-metadata-modal-btn" class="btn btn-secondary">Close</button>

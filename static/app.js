@@ -2733,10 +2733,14 @@ async function updateManualLocation(latLng, index, altitude = null) {
 async function copyFromPreviousPhoto() {
     if (state.selectedPhotoIndex === null || state.selectedPhotoIndex === 0) return;
     
-    const previousIndex = state.selectedPhotoIndex - 1;
-    const previousPhoto = state.photos[previousIndex];
+    const previousFilteredIndex = state.selectedPhotoIndex - 1;
+    const previousPhoto = state.filteredPhotos[previousFilteredIndex];
+    const currentPhoto = state.filteredPhotos[state.selectedPhotoIndex];
     
-    if (!previousPhoto) return;
+    if (!previousPhoto || !currentPhoto) return;
+    
+    // Get the original index for the current photo (for API calls)
+    const currentOriginalIndex = currentPhoto.original_index !== undefined ? currentPhoto.original_index : state.selectedPhotoIndex;
     
     // Check if previous photo has manual or final coordinates to copy
     const hasManual = previousPhoto.manual_latitude !== -360 && previousPhoto.manual_longitude !== -360;
@@ -2753,13 +2757,13 @@ async function copyFromPreviousPhoto() {
         const lngToCopy = hasManual ? previousPhoto.manual_longitude : previousPhoto.final_longitude;
         const altToCopy = hasManual ? previousPhoto.manual_altitude : previousPhoto.final_altitude;
         
-        // Set manual marker on current photo using the copied coordinates
+        // Set manual marker on current photo using the copied coordinates and original index
         if (state.mapProvider === 'google') {
             const latLng = new google.maps.LatLng(latToCopy, lngToCopy);
-            await placeManualMarker(latLng, state.selectedPhotoIndex, altToCopy);
+            await placeManualMarker(latLng, currentOriginalIndex, altToCopy);
         } else {
             const latLng = { lat: latToCopy, lng: lngToCopy };
-            await placeManualMarker(latLng, state.selectedPhotoIndex, altToCopy);
+            await placeManualMarker(latLng, currentOriginalIndex, altToCopy);
         }
     } catch (error) {
         console.error('Error copying from previous photo:', error);
@@ -2772,11 +2776,14 @@ async function copyFieldFromPrevious(fieldName) {
         return;
     }
     
-    const previousIndex = state.selectedPhotoIndex - 1;
-    const previousPhoto = state.photos[previousIndex];
-    const currentPhoto = state.photos[state.selectedPhotoIndex];
+    const previousFilteredIndex = state.selectedPhotoIndex - 1;
+    const previousPhoto = state.filteredPhotos[previousFilteredIndex];
+    const currentPhoto = state.filteredPhotos[state.selectedPhotoIndex];
     
     if (!previousPhoto || !currentPhoto) return;
+    
+    // Get the original index for API calls
+    const currentOriginalIndex = currentPhoto.original_index !== undefined ? currentPhoto.original_index : state.selectedPhotoIndex;
     
     // Determine what value to copy based on field name
     let valueToCopy = null;
@@ -2852,7 +2859,7 @@ async function copyFieldFromPrevious(fieldName) {
     }
     
     try {
-        const response = await fetch(`/api/photos/${state.selectedPhotoIndex}/metadata`, {
+        const response = await fetch(`/api/photos/${currentOriginalIndex}/metadata`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updateData)
@@ -2861,15 +2868,22 @@ async function copyFieldFromPrevious(fieldName) {
         const result = await response.json();
         
         if (result.success) {
-            // Update the photo in state
+            // Update the photo in state (both filtered and original arrays)
             Object.keys(updateData).forEach(key => {
                 currentPhoto[key] = updateData[key] || null;
+                if (state.photos[currentOriginalIndex]) {
+                    state.photos[currentOriginalIndex][key] = updateData[key] || null;
+                }
             });
             
             // If we updated capture time, also update GPS stamps
             if (updateData.new_time) {
                 currentPhoto.new_gps_datestamp = result.photo?.new_gps_datestamp || null;
                 currentPhoto.new_gps_timestamp = result.photo?.new_gps_timestamp || null;
+                if (state.photos[currentOriginalIndex]) {
+                    state.photos[currentOriginalIndex].new_gps_datestamp = result.photo?.new_gps_datestamp || null;
+                    state.photos[currentOriginalIndex].new_gps_timestamp = result.photo?.new_gps_timestamp || null;
+                }
             }
             
             // Refresh the display
@@ -2932,7 +2946,8 @@ async function setManualPositionManually() {
 async function copyExifToManual() {
     if (state.selectedPhotoIndex === null) return;
     
-    const photo = state.photos[state.selectedPhotoIndex];
+    const photo = state.filteredPhotos[state.selectedPhotoIndex];
+    const originalIndex = photo.original_index !== undefined ? photo.original_index : state.selectedPhotoIndex;
     
     // Check if EXIF coordinates exist
     if (!photo || photo.exif_latitude === -360 || photo.exif_longitude === -360) {
@@ -2945,7 +2960,7 @@ async function copyExifToManual() {
         const latLng = { lat: photo.exif_latitude, lng: photo.exif_longitude };
         const altitude = photo.exif_altitude !== null && photo.exif_altitude !== undefined ? photo.exif_altitude : null;
         
-        await placeManualMarker(latLng, state.selectedPhotoIndex, altitude);
+        await placeManualMarker(latLng, originalIndex, altitude);
         
     } catch (error) {
         console.error('Error copying EXIF position to manual:', error);
@@ -2956,7 +2971,8 @@ async function copyExifToManual() {
 async function copyGpxToManual() {
     if (state.selectedPhotoIndex === null) return;
     
-    const photo = state.photos[state.selectedPhotoIndex];
+    const photo = state.filteredPhotos[state.selectedPhotoIndex];
+    const originalIndex = photo.original_index !== undefined ? photo.original_index : state.selectedPhotoIndex;
     
     // Check if GPX coordinates exist
     if (!photo || photo.gpx_latitude === -360 || photo.gpx_longitude === -360) {
@@ -2969,7 +2985,7 @@ async function copyGpxToManual() {
         const latLng = { lat: photo.gpx_latitude, lng: photo.gpx_longitude };
         const altitude = photo.gpx_altitude !== null && photo.gpx_altitude !== undefined ? photo.gpx_altitude : null;
         
-        await placeManualMarker(latLng, state.selectedPhotoIndex, altitude);
+        await placeManualMarker(latLng, originalIndex, altitude);
         
     } catch (error) {
         console.error('Error copying GPX position to manual:', error);
@@ -3063,16 +3079,24 @@ async function showPredefinedPositionsModal() {
 async function deleteManualMarker() {
     if (state.selectedPhotoIndex === null) return;
     
+    const photo = state.filteredPhotos[state.selectedPhotoIndex];
+    const originalIndex = photo.original_index !== undefined ? photo.original_index : state.selectedPhotoIndex;
+    
     try {
-        const response = await fetch(`/api/photos/${state.selectedPhotoIndex}/manual-location`, {
+        const response = await fetch(`/api/photos/${originalIndex}/manual-location`, {
             method: 'DELETE'
         });
         
         const result = await response.json();
         
-        // Update local state with complete photo data including updated final coordinates
-        if (result.success && state.photos[state.selectedPhotoIndex]) {
-            Object.assign(state.photos[state.selectedPhotoIndex], result.photo);
+        // Update local state with complete photo data including updated final coordinates (both filtered and original arrays)
+        if (result.success) {
+            if (state.photos[originalIndex]) {
+                Object.assign(state.photos[originalIndex], result.photo);
+            }
+            if (photo) {
+                Object.assign(photo, result.photo);
+            }
         }
         
         // Remove manual marker from map without changing view
@@ -3091,9 +3115,9 @@ async function deleteManualMarker() {
         
         // Update final marker and coordinates
         if (state.mapProvider === 'google') {
-            updateFinalMarkerGoogle(state.photos[state.selectedPhotoIndex]);
+            updateFinalMarkerGoogle(photo);
         } else {
-            updateFinalMarkerOSM(state.photos[state.selectedPhotoIndex]);
+            updateFinalMarkerOSM(photo);
         }
         
         // Update final coordinates display with altitude
@@ -3117,8 +3141,8 @@ async function deleteManualMarker() {
         }
         
         // Refresh the EXIF info table to show updated final position
-        if (state.photos[state.selectedPhotoIndex]) {
-            displayEXIFInfo(state.photos[state.selectedPhotoIndex]);
+        if (photo) {
+            displayEXIFInfo(photo);
         }
         
     } catch (error) {
@@ -3131,7 +3155,7 @@ function navigatePhoto(direction) {
     
     const newIndex = state.selectedPhotoIndex + direction;
     
-    if (newIndex >= 0 && newIndex < state.photos.length) {
+    if (newIndex >= 0 && newIndex < state.filteredPhotos.length) {
         state.selectedPhotoIndex = newIndex;
         displayLargePhoto(newIndex);
     }
@@ -3140,7 +3164,7 @@ function navigatePhoto(direction) {
 async function editPhotoMetadata() {
     if (state.selectedPhotoIndex === null) return;
     
-    const photo = state.photos[state.selectedPhotoIndex];
+    const photo = state.filteredPhotos[state.selectedPhotoIndex];
     const photoIndex = photo.original_index !== undefined ? photo.original_index : state.selectedPhotoIndex;
     
     // Format current values for display
@@ -3292,9 +3316,12 @@ async function applyTitleChange() {
             alert('Title updated successfully!');
             state.editingOriginalTitle = newTitle;
             
-            // Update the photo in state directly
-            if (state.photos[state.selectedPhotoIndex]) {
-                state.photos[state.selectedPhotoIndex].new_title = newTitle || null;
+            // Update the photo in state (both filtered and original arrays)
+            if (state.photos[state.editingPhotoIndex]) {
+                state.photos[state.editingPhotoIndex].new_title = newTitle || null;
+            }
+            if (state.filteredPhotos[state.selectedPhotoIndex]) {
+                state.filteredPhotos[state.selectedPhotoIndex].new_title = newTitle || null;
             }
             
             // Refresh the display
@@ -3367,9 +3394,12 @@ async function applyTimeChange() {
             alert('Time updated successfully!');
             state.editingOriginalTime = updateData.new_time ? new Date(updateData.new_time).toISOString() : null;
             
-            // Update the photo in state directly
-            if (state.photos[state.selectedPhotoIndex]) {
-                state.photos[state.selectedPhotoIndex].new_time = updateData.new_time || null;
+            // Update the photo in state (both filtered and original arrays)
+            if (state.photos[state.editingPhotoIndex]) {
+                state.photos[state.editingPhotoIndex].new_time = updateData.new_time || null;
+            }
+            if (state.filteredPhotos[state.selectedPhotoIndex]) {
+                state.filteredPhotos[state.selectedPhotoIndex].new_time = updateData.new_time || null;
             }
             
             // Refresh the display
@@ -3420,9 +3450,12 @@ async function applyOffsetChange() {
             alert('Offset time updated successfully!');
             state.editingOriginalOffset = updateData.new_offset_time || '';
             
-            // Update the photo in state directly
-            if (state.photos[state.selectedPhotoIndex]) {
-                state.photos[state.selectedPhotoIndex].new_offset_time = updateData.new_offset_time || null;
+            // Update the photo in state (both filtered and original arrays)
+            if (state.photos[state.editingPhotoIndex]) {
+                state.photos[state.editingPhotoIndex].new_offset_time = updateData.new_offset_time || null;
+            }
+            if (state.filteredPhotos[state.selectedPhotoIndex]) {
+                state.filteredPhotos[state.selectedPhotoIndex].new_offset_time = updateData.new_offset_time || null;
             }
             
             // Refresh the display
@@ -3499,12 +3532,18 @@ async function applyLocationChanges() {
             state.editingOriginalState = newState;
             state.editingOriginalCountry = newCountry;
             
-            // Update the photo in state
-            if (state.photos[state.selectedPhotoIndex]) {
-                state.photos[state.selectedPhotoIndex].new_city = newCity || null;
-                state.photos[state.selectedPhotoIndex].new_sublocation = newSublocation || null;
-                state.photos[state.selectedPhotoIndex].new_state = newState || null;
-                state.photos[state.selectedPhotoIndex].new_country = newCountry || null;
+            // Update the photo in state (both filtered and original arrays)
+            if (state.photos[state.editingPhotoIndex]) {
+                state.photos[state.editingPhotoIndex].new_city = newCity || null;
+                state.photos[state.editingPhotoIndex].new_sublocation = newSublocation || null;
+                state.photos[state.editingPhotoIndex].new_state = newState || null;
+                state.photos[state.editingPhotoIndex].new_country = newCountry || null;
+            }
+            if (state.filteredPhotos[state.selectedPhotoIndex]) {
+                state.filteredPhotos[state.selectedPhotoIndex].new_city = newCity || null;
+                state.filteredPhotos[state.selectedPhotoIndex].new_sublocation = newSublocation || null;
+                state.filteredPhotos[state.selectedPhotoIndex].new_state = newState || null;
+                state.filteredPhotos[state.selectedPhotoIndex].new_country = newCountry || null;
             }
             
             // Refresh the display

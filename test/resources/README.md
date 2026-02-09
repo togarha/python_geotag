@@ -80,6 +80,7 @@ You can also use "Save Config As..." to save the current configuration to a new 
 
 ```
 usage: main.py [-h] [--config CONFIG] [--host HOST] [--port PORT]
+               [--folder-path FOLDER_PATH] [--export-folder EXPORT_FOLDER]
 
 Photo Geotagging Application
 
@@ -89,7 +90,13 @@ optional arguments:
                         Path to configuration file (YAML)
   --host HOST           Host to bind to (default: 127.0.0.1)
   --port PORT           Port to bind to (default: 8000)
+  --folder-path FOLDER_PATH
+                        Photo folder path (overrides config file)
+  --export-folder EXPORT_FOLDER
+                        Export folder path (overrides config file)
 ```
+
+**Priority**: Command-line arguments take priority over config file values. This allows you to temporarily override folder paths without modifying the config file.
 
 ## Auto-Save
 

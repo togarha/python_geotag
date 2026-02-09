@@ -230,10 +230,22 @@ uv run python main.py -c path/to/config.yaml
 uv run python main.py --host 0.0.0.0 --port 8080
 ```
 
+**With folder paths (overrides config file)**:
+```powershell
+uv run python main.py --folder-path "C:\Photos" --export-folder "C:\Exported"
+```
+
 **All options combined**:
 ```powershell
-uv run python main.py -c config.yaml --host 0.0.0.0 --port 8080
+uv run python main.py -c config.yaml --host 0.0.0.0 --port 8080 --folder-path "C:\Photos" --export-folder "C:\Exported"
 ```
+
+**Command-line arguments**:
+- `--config` / `-c`: Path to configuration file (YAML)
+- `--host`: Host to bind to (default: 127.0.0.1)
+- `--port`: Port to bind to (default: 8000)
+- `--folder-path`: Photo folder path (overrides config file value)
+- `--export-folder`: Export folder path (overrides config file value)
 
 The server will start at `http://127.0.0.1:8000` by default
 
@@ -978,7 +990,8 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 
 **Configuration File System**:
 - ✅ YAML-based configuration management with ConfigManager class
-- ✅ Command-line arguments: `--config` (or `-c`), `--host`, `--port`
+- ✅ Command-line arguments: `--config` (or `-c`), `--host`, `--port`, `--folder-path`, `--export-folder`
+- ✅ Command-line folder paths override config file values (priority system)
 - ✅ Auto-save toggle: Choose automatic or manual config saving
 - ✅ Manual save and download buttons in Settings view
 - ✅ Browser-native file download for "Save Config As"

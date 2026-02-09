@@ -1989,6 +1989,16 @@ function initializeLargePhotoView() {
     setPredefinedPositionBtn.addEventListener('click', showPredefinedPositionsModal);
     editMetadataBtn.addEventListener('click', editPhotoMetadata);
 
+    // Event delegation for copy field icons in the photo information table
+    const exifInfo = document.getElementById('exif-info');
+    exifInfo.addEventListener('click', (e) => {
+        const copyIcon = e.target.closest('.copy-field-icon');
+        if (copyIcon) {
+            const fieldName = copyIcon.dataset.field;
+            copyFieldFromPrevious(fieldName);
+        }
+    });
+
     // Add click handlers for EXIF and GPX marker labels
     const exifMarkerLabel = document.getElementById('exif-marker-label');
     const gpxMarkerLabel = document.getElementById('gpx-marker-label');
@@ -2155,57 +2165,79 @@ function displayEXIFInfo(photo) {
         {
             label: 'Filename',
             current: photo.filename,
-            new: photo.new_name || photo.filename
+            new: photo.new_name || photo.filename,
+            fieldName: null,
+            hasCopy: false
         },
         {
             label: 'Image Title',
             current: photo.exif_image_title || 'N/A',
-            new: photo.new_title !== null && photo.new_title !== undefined ? (photo.new_title || '(blank)') : 'N/A'
+            new: photo.new_title !== null && photo.new_title !== undefined ? (photo.new_title || '(blank)') : 'N/A',
+            fieldName: 'title',
+            hasCopy: true
         },
         {
             label: 'File Creation Time',
             current: formatDateTime(photo.creation_time),
-            new: formatDateTime(photo.creation_time)
+            new: formatDateTime(photo.creation_time),
+            fieldName: null,
+            hasCopy: false
         },
         {
             label: 'EXIF Capture Time',
             current: formatDateTime(photo.exif_capture_time),
-            new: formatDateTime(photo.new_time) + formatTimeDiff(photo.exif_capture_time, photo.new_time)
+            new: formatDateTime(photo.new_time) + formatTimeDiff(photo.exif_capture_time, photo.new_time),
+            fieldName: 'capture_time',
+            hasCopy: true
         },
         {
             label: 'GPS Date/Time Stamp',
             current: formatGPSDateTime(photo.exif_gps_datestamp, photo.exif_gps_timestamp),
-            new: formatGPSDateTime(photo.new_gps_datestamp || photo.exif_gps_datestamp, photo.new_gps_timestamp || photo.exif_gps_timestamp)
+            new: formatGPSDateTime(photo.new_gps_datestamp || photo.exif_gps_datestamp, photo.new_gps_timestamp || photo.exif_gps_timestamp),
+            fieldName: null,
+            hasCopy: false
         },
         {
             label: 'Offset Time',
             current: photo.exif_offset_time || 'N/A',
-            new: photo.new_offset_time || (photo.exif_offset_time || 'N/A')
+            new: photo.new_offset_time || (photo.exif_offset_time || 'N/A'),
+            fieldName: 'offset_time',
+            hasCopy: true
         },
         {
             label: 'City',
             current: photo.exif_city || 'N/A',
-            new: photo.new_city || (photo.exif_city || 'N/A')
+            new: photo.new_city || (photo.exif_city || 'N/A'),
+            fieldName: 'city',
+            hasCopy: true
         },
         {
             label: 'Sub-location',
             current: photo.exif_sublocation || 'N/A',
-            new: photo.new_sublocation || (photo.exif_sublocation || 'N/A')
+            new: photo.new_sublocation || (photo.exif_sublocation || 'N/A'),
+            fieldName: 'sublocation',
+            hasCopy: true
         },
         {
             label: 'State/Province',
             current: photo.exif_state || 'N/A',
-            new: photo.new_state || (photo.exif_state || 'N/A')
+            new: photo.new_state || (photo.exif_state || 'N/A'),
+            fieldName: 'state',
+            hasCopy: true
         },
         {
             label: 'Country',
             current: photo.exif_country || 'N/A',
-            new: photo.new_country || (photo.exif_country || 'N/A')
+            new: photo.new_country || (photo.exif_country || 'N/A'),
+            fieldName: 'country',
+            hasCopy: true
         },
         {
             label: 'EXIF Position',
             current: formatCoords(photo.exif_latitude, photo.exif_longitude, photo.exif_altitude),
-            new: formatCoords(photo.final_latitude, photo.final_longitude, photo.final_altitude)
+            new: formatCoords(photo.final_latitude, photo.final_longitude, photo.final_altitude),
+            fieldName: 'position',
+            hasCopy: true
         }
     ];
 
@@ -2214,6 +2246,7 @@ function displayEXIFInfo(photo) {
             <td>${row.label}</td>
             <td>${row.current}</td>
             <td>${row.new}</td>
+            <td>${row.hasCopy ? `<span class="copy-field-icon" data-field="${row.fieldName}" title="Copy from previous photo" style="cursor: pointer;">📋</span>` : ''}</td>
         </tr>
     `).join('');
 }
@@ -2730,6 +2763,123 @@ async function copyFromPreviousPhoto() {
         }
     } catch (error) {
         console.error('Error copying from previous photo:', error);
+    }
+}
+
+async function copyFieldFromPrevious(fieldName) {
+    if (state.selectedPhotoIndex === null || state.selectedPhotoIndex === 0) {
+        alert('Cannot copy from previous photo for the first photo.');
+        return;
+    }
+    
+    const previousIndex = state.selectedPhotoIndex - 1;
+    const previousPhoto = state.photos[previousIndex];
+    const currentPhoto = state.photos[state.selectedPhotoIndex];
+    
+    if (!previousPhoto || !currentPhoto) return;
+    
+    // Determine what value to copy based on field name
+    let valueToCopy = null;
+    let updateData = {};
+    
+    switch (fieldName) {
+        case 'title':
+            valueToCopy = previousPhoto.new_title !== null && previousPhoto.new_title !== undefined 
+                ? previousPhoto.new_title 
+                : previousPhoto.exif_image_title;
+            updateData.new_title = valueToCopy || '';
+            break;
+            
+        case 'capture_time':
+            valueToCopy = previousPhoto.new_time || previousPhoto.exif_capture_time;
+            if (!valueToCopy || valueToCopy === 'N/A') {
+                alert('Previous photo has no capture time to copy.');
+                return;
+            }
+            // Format datetime to YYYY-MM-DD HH:MM:SS
+            try {
+                const date = new Date(valueToCopy);
+                if (isNaN(date.getTime())) {
+                    alert('Invalid datetime format in previous photo.');
+                    return;
+                }
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                const seconds = String(date.getSeconds()).padStart(2, '0');
+                updateData.new_time = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+            } catch (error) {
+                alert('Error formatting datetime from previous photo.');
+                return;
+            }
+            break;
+            
+        case 'offset_time':
+            valueToCopy = previousPhoto.new_offset_time || previousPhoto.exif_offset_time;
+            updateData.new_offset_time = valueToCopy || '';
+            break;
+            
+        case 'city':
+            valueToCopy = previousPhoto.new_city || previousPhoto.exif_city;
+            updateData.new_city = valueToCopy || '';
+            break;
+            
+        case 'sublocation':
+            valueToCopy = previousPhoto.new_sublocation || previousPhoto.exif_sublocation;
+            updateData.new_sublocation = valueToCopy || '';
+            break;
+            
+        case 'state':
+            valueToCopy = previousPhoto.new_state || previousPhoto.exif_state;
+            updateData.new_state = valueToCopy || '';
+            break;
+            
+        case 'country':
+            valueToCopy = previousPhoto.new_country || previousPhoto.exif_country;
+            updateData.new_country = valueToCopy || '';
+            break;
+            
+        case 'position':
+            // Use the existing copyFromPreviousPhoto function for position
+            await copyFromPreviousPhoto();
+            return;
+            
+        default:
+            console.error('Unknown field name:', fieldName);
+            return;
+    }
+    
+    try {
+        const response = await fetch(`/api/photos/${state.selectedPhotoIndex}/metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update the photo in state
+            Object.keys(updateData).forEach(key => {
+                currentPhoto[key] = updateData[key] || null;
+            });
+            
+            // If we updated capture time, also update GPS stamps
+            if (updateData.new_time) {
+                currentPhoto.new_gps_datestamp = result.photo?.new_gps_datestamp || null;
+                currentPhoto.new_gps_timestamp = result.photo?.new_gps_timestamp || null;
+            }
+            
+            // Refresh the display
+            await displayLargePhoto(state.selectedPhotoIndex);
+        } else {
+            alert('Error copying field: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error copying field:', error);
+        alert('Error copying field: ' + error.message);
     }
 }
 

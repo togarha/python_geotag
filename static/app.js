@@ -158,6 +158,12 @@ function initializeThumbnailsView() {
             gpxMapProviderSelect.value = mapProviderSelect.value;
         }
         
+        // Update photo map provider selector
+        const photoMapProviderSelect = document.getElementById('photo-map-provider');
+        if (photoMapProviderSelect) {
+            photoMapProviderSelect.value = mapProviderSelect.value;
+        }
+        
         // Properly remove Leaflet maps before resetting
         if (state.photoMap) {
             if (state.photoMap.remove) {
@@ -736,6 +742,12 @@ function initializeGPXView() {
         const mapProviderSelect = document.getElementById('map-provider');
         if (mapProviderSelect) {
             mapProviderSelect.value = e.target.value;
+        }
+        
+        // Update photo map provider selector
+        const photoMapProviderSelect = document.getElementById('photo-map-provider');
+        if (photoMapProviderSelect) {
+            photoMapProviderSelect.value = e.target.value;
         }
         
         // Clear old map
@@ -2009,6 +2021,49 @@ function initializeLargePhotoView() {
         gpxMarkerLabel.addEventListener('click', copyGpxToManual);
     }
 
+    // Photo map provider change handler
+    const photoMapProviderSelect = document.getElementById('photo-map-provider');
+    if (photoMapProviderSelect) {
+        photoMapProviderSelect.addEventListener('change', (e) => {
+            state.mapProvider = e.target.value;
+            state.gpxMapProvider = e.target.value; // Sync GPX map provider
+            
+            // Update settings map provider selector
+            const mapProviderSelect = document.getElementById('map-provider');
+            if (mapProviderSelect) {
+                mapProviderSelect.value = e.target.value;
+            }
+            
+            // Update GPX map provider selector
+            const gpxMapProviderSelect = document.getElementById('gpx-map-provider');
+            if (gpxMapProviderSelect) {
+                gpxMapProviderSelect.value = e.target.value;
+            }
+            
+            // Clear old photo map
+            if (state.photoMap) {
+                if (state.photoMap.remove) {
+                    state.photoMap.remove();
+                }
+                state.photoMap = null;
+            }
+            
+            // Clear GPX map since provider changed
+            if (state.gpxMap) {
+                if (state.gpxMap.remove) {
+                    state.gpxMap.remove();
+                }
+                state.gpxMap = null;
+            }
+            
+            // Refresh the photo map with new provider if we're viewing a photo
+            if (state.selectedPhotoIndex !== null && state.filteredPhotos[state.selectedPhotoIndex]) {
+                const photo = state.filteredPhotos[state.selectedPhotoIndex];
+                displayPhotoMap(photo, photo.original_index !== undefined ? photo.original_index : state.selectedPhotoIndex);
+            }
+        });
+    }
+
     // Close on background click
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
@@ -2078,6 +2133,12 @@ async function displayLargePhoto(index) {
         
         // Display EXIF info
         displayEXIFInfo(photoData);
+        
+        // Sync photo map provider selector with current state
+        const photoMapProviderSelect = document.getElementById('photo-map-provider');
+        if (photoMapProviderSelect) {
+            photoMapProviderSelect.value = state.mapProvider;
+        }
         
         // Display map with markers
         displayPhotoMap(photoData, photoIndex);

@@ -333,7 +333,17 @@
 
                     <div class="photo-info-section">
                         <div class="map-panel">
-                            <h3>Location Map</h3>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h3 style="margin: 0;">Location Map</h3>
+                                <div class="control-group" style="margin: 0;">
+                                    <label for="photo-map-provider">Map:</label>
+                                    <select id="photo-map-provider">
+                                        <option value="osm">OpenStreetMap</option>
+                                        <option value="esri">ESRI World Imagery (Satellite)</option>
+                                        <option value="google">Google Maps</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div id="photo-map" class="photo-map"></div>
                             <div class="map-controls">
                                 <button id="copy-from-previous" class="btn btn-secondary" disabled title="Copy position from previous image">

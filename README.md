@@ -75,6 +75,17 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 - **Keyboard Controls**: Arrow keys for navigation, Space to open, Escape to close
 - **Tag Management**: Quick tagging with checkboxes (labels removed for cleaner UI)
 - **EXIF Display**: Comprehensive metadata viewing including altitude
+- **Photo Information Table**: 
+  - Shows Current Value and New Value for all metadata fields
+  - 📋 **Copy icons** for quick copying from previous photo:
+    - Image Title
+    - EXIF Capture Time
+    - Offset Time
+    - City, Sub-location, State/Province, Country
+    - EXIF Position
+  - Hover tooltips explain copy functionality
+  - GPS Date/Time Stamp auto-calculated (not copyable)
+  - Smart filtering: copy from previous visible photo when filtered
 - **Interactive Map**: View and edit photo locations with dual map provider support
 - **Real-time Updates**: Coordinate display updates immediately when placing or deleting markers
 - **Marker Management**: 
@@ -86,7 +97,7 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
   1. Click on map (auto-fetches elevation)
   2. Enter coordinates manually with format: `latitude, longitude (altitude)`
   3. Select from loaded predefined positions
-  4. Copy from previous photo
+  4. Copy from previous photo (works correctly with filtered photos)
 
 ### 🎨 User Interface
 - **Expandable Menu**: Auto-expands on hover or click
@@ -442,9 +453,13 @@ See `test/resources/README.md` for detailed configuration documentation.
 2. **Viewing Information**:
    - Left side: Full-size photo
    - Top right: EXIF metadata with Photo Information table
-     - Shows Current Value and New Value columns
-     - Displays: Filename, Image Title, File Creation Time, EXIF Capture Time, EXIF Position
-     - New Value shows: new_name, new_title, new_time (if set), final coordinates
+     - **Three columns**: Property, Current Value, New Value
+     - **Fourth column**: Copy icons (📋) for quick data copying
+     - Displays: Filename, Image Title, File Creation Time, EXIF Capture Time, GPS Date/Time Stamp, Offset Time, City, Sub-location, State/Province, Country, EXIF Position
+     - New Value shows: new_name, new_title, new_time (if set), calculated GPS timestamps, offset time, location fields, final coordinates
+     - **Copy from Previous**: Click 📋 icon to copy field value from previous photo in view
+     - **Smart Filtering**: When photos are filtered, copies from previous visible photo
+     - Tooltips: Hover over copy icons to see "Copy from previous photo"
    - Bottom right: Interactive location map with coordinate legend
 
 3. **Edit Photo Metadata (✏️ button)**:
@@ -498,6 +513,17 @@ See `test/resources/README.md` for detailed configuration documentation.
    - Click the 📋 "Copy position from previous image" button
    - Copies manual or final position (including altitude) from previous photo
    - Disabled for the first photo
+   - **Smart filtering**: When photos are filtered (e.g., tagged only), copies from previous visible photo, not overall previous
+   
+   **Quick Copy for All Fields (📋 icons in table)**
+   - Click 📋 icon next to any field in Photo Information table to copy from previous photo:
+     - **Image Title**: Copy title from previous photo
+     - **EXIF Capture Time**: Copy timestamp (with automatic format conversion)
+     - **Offset Time**: Copy timezone offset
+     - **Location Fields**: Copy city, sub-location, state, country individually
+     - **EXIF Position**: Uses dedicated copy button (same as Method 4)
+   - GPS Date/Time Stamp calculated automatically (no copy icon)
+   - Works correctly with filtered photos - copies from previous in filtered view
 
 6. **Deleting Manual Location (🗑️ button)**:
    - Click "🗑️" to remove manual location
@@ -762,8 +788,53 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [x] ~~Advanced filtering and search~~ ✅ Implemented in v1.5
 - [x] ~~Export photos with updated metadata~~ ✅ Implemented in v1.6
 - [x] ~~Location metadata management~~ ✅ Implemented in v1.7
+- [x] ~~Copy from previous photo for all fields~~ ✅ Implemented in v1.8
+- [x] ~~Filtered photo navigation fixes~~ ✅ Implemented in v1.8
+- [x] ~~Copy from previous photo for all fields~~ ✅ Implemented in v1.8
+- [x] ~~Filtered photo navigation fixes~~ ✅ Implemented in v1.8
 
 ## Recent Updates
+
+### Version 1.8 - Copy from Previous & Filtered Photo Fixes
+
+**Copy from Previous Enhancements**:
+- ✅ Added copy icon column (📋) to Photo Information table
+- ✅ Individual copy functionality for 9 fields:
+  - Image Title
+  - EXIF Capture Time (with automatic datetime format conversion)
+  - Offset Time
+  - City, Sub-location, State/Province, Country
+  - EXIF Position (uses existing copy button)
+- ✅ GPS Date/Time Stamp excluded (auto-calculated from capture time)
+- ✅ Tooltips on all copy icons: "Copy from previous photo"
+- ✅ Click-to-copy interface for quick data propagation between photos
+- ✅ Automatic state synchronization between filteredPhotos and photos arrays
+
+**Filtered Photo Handling**:
+- ✅ Fixed copy from previous to work with filtered photos
+- ✅ Uses filteredPhotos array for correct previous photo selection
+- ✅ Original_index properly tracked for API calls
+- ✅ All copy functions updated: position, field copy, EXIF copy, GPX copy
+- ✅ Edit metadata functions use correct indices
+- ✅ Apply functions update both filtered and original arrays
+- ✅ Navigation respects filtered photo boundaries
+- ✅ Works correctly with all filter combinations (tagged, GPS status, date range)
+
+**Technical Implementation**:
+- ✅ Event delegation for copy icon clicks
+- ✅ Generic copyFieldFromPrevious(fieldName) function
+- ✅ Datetime format conversion for capture time (ISO to YYYY-MM-DD HH:MM:SS)
+- ✅ State management: updates both state.photos and state.filteredPhotos
+- ✅ Backend integration via /api/photos/{index}/metadata endpoint
+- ✅ GPS timestamp auto-update when copying capture time
+- ✅ Visual feedback: table refreshes immediately after copy
+
+**UI Improvements**:
+- ✅ Clean 4-column table layout (Property, Current, New, Copy Icon)
+- ✅ Empty header for copy column
+- ✅ Copy icons only shown for applicable fields
+- ✅ Cursor pointer on hover for interactive feedback
+- ✅ Inline copy icons for seamless workflow
 
 ### Version 1.7 - Location Metadata Management
 
@@ -1060,7 +1131,7 @@ For issues, questions, or contributions, please refer to the project repository.
 
 ---
 
-**Note**: The application now supports three map providers: OpenStreetMap (default), ESRI World Imagery (free satellite), and Google Maps (requires API key). Two of three providers require no configuration! Free elevation services (Open-Elevation, OpenTopoData) are available, with an option to disable elevation fetching entirely. All settings can be saved to YAML configuration files and loaded automatically on startup.
+**Note**: The application now supports three map providers: OpenStreetMap (default), ESRI World Imagery (free satellite), and Google Maps (requires API key). Two of three providers require no configuration! Free elevation services (Open-Elevation, OpenTopoData) are available, with an option to disable elevation fetching entirely. All settings can be saved to YAML configuration files and loaded automatically on startup. **NEW in v1.8**: Quick copy functionality lets you copy metadata fields from the previous photo with a single click - perfect for batch editing photos from the same location or event!
 
 **Example Files**: 
 - Check `test/resources/` for sample YAML position files to get started with predefined positions

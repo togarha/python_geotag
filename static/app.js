@@ -2937,13 +2937,25 @@ async function copyFieldFromPrevious(fieldName) {
                 }
             });
             
-            // If we updated capture time, also update GPS stamps
-            if (updateData.new_time) {
-                currentPhoto.new_gps_datestamp = result.photo?.new_gps_datestamp || null;
-                currentPhoto.new_gps_timestamp = result.photo?.new_gps_timestamp || null;
-                if (state.photos[currentOriginalIndex]) {
-                    state.photos[currentOriginalIndex].new_gps_datestamp = result.photo?.new_gps_datestamp || null;
-                    state.photos[currentOriginalIndex].new_gps_timestamp = result.photo?.new_gps_timestamp || null;
+            // Update GPS stamps and new_name from server response
+            if (result.photo) {
+                if (result.photo.new_gps_datestamp !== undefined) {
+                    currentPhoto.new_gps_datestamp = result.photo.new_gps_datestamp;
+                    if (state.photos[currentOriginalIndex]) {
+                        state.photos[currentOriginalIndex].new_gps_datestamp = result.photo.new_gps_datestamp;
+                    }
+                }
+                if (result.photo.new_gps_timestamp !== undefined) {
+                    currentPhoto.new_gps_timestamp = result.photo.new_gps_timestamp;
+                    if (state.photos[currentOriginalIndex]) {
+                        state.photos[currentOriginalIndex].new_gps_timestamp = result.photo.new_gps_timestamp;
+                    }
+                }
+                if (result.photo.new_name !== undefined) {
+                    currentPhoto.new_name = result.photo.new_name;
+                    if (state.photos[currentOriginalIndex]) {
+                        state.photos[currentOriginalIndex].new_name = result.photo.new_name;
+                    }
                 }
             }
             
@@ -3380,9 +3392,17 @@ async function applyTitleChange() {
             // Update the photo in state (both filtered and original arrays)
             if (state.photos[state.editingPhotoIndex]) {
                 state.photos[state.editingPhotoIndex].new_title = newTitle || null;
+                // Update new_name from server response (in case filename includes title)
+                if (result.photo && result.photo.new_name !== undefined) {
+                    state.photos[state.editingPhotoIndex].new_name = result.photo.new_name;
+                }
             }
             if (state.filteredPhotos[state.selectedPhotoIndex]) {
                 state.filteredPhotos[state.selectedPhotoIndex].new_title = newTitle || null;
+                // Update new_name from server response (in case filename includes title)
+                if (result.photo && result.photo.new_name !== undefined) {
+                    state.filteredPhotos[state.selectedPhotoIndex].new_name = result.photo.new_name;
+                }
             }
             
             // Refresh the display
@@ -3458,9 +3478,33 @@ async function applyTimeChange() {
             // Update the photo in state (both filtered and original arrays)
             if (state.photos[state.editingPhotoIndex]) {
                 state.photos[state.editingPhotoIndex].new_time = updateData.new_time || null;
+                // Update GPS stamps and new_name from server response
+                if (result.photo) {
+                    if (result.photo.new_gps_datestamp !== undefined) {
+                        state.photos[state.editingPhotoIndex].new_gps_datestamp = result.photo.new_gps_datestamp;
+                    }
+                    if (result.photo.new_gps_timestamp !== undefined) {
+                        state.photos[state.editingPhotoIndex].new_gps_timestamp = result.photo.new_gps_timestamp;
+                    }
+                    if (result.photo.new_name !== undefined) {
+                        state.photos[state.editingPhotoIndex].new_name = result.photo.new_name;
+                    }
+                }
             }
             if (state.filteredPhotos[state.selectedPhotoIndex]) {
                 state.filteredPhotos[state.selectedPhotoIndex].new_time = updateData.new_time || null;
+                // Update GPS stamps and new_name from server response
+                if (result.photo) {
+                    if (result.photo.new_gps_datestamp !== undefined) {
+                        state.filteredPhotos[state.selectedPhotoIndex].new_gps_datestamp = result.photo.new_gps_datestamp;
+                    }
+                    if (result.photo.new_gps_timestamp !== undefined) {
+                        state.filteredPhotos[state.selectedPhotoIndex].new_gps_timestamp = result.photo.new_gps_timestamp;
+                    }
+                    if (result.photo.new_name !== undefined) {
+                        state.filteredPhotos[state.selectedPhotoIndex].new_name = result.photo.new_name;
+                    }
+                }
             }
             
             // Refresh the display
@@ -3514,9 +3558,27 @@ async function applyOffsetChange() {
             // Update the photo in state (both filtered and original arrays)
             if (state.photos[state.editingPhotoIndex]) {
                 state.photos[state.editingPhotoIndex].new_offset_time = updateData.new_offset_time || null;
+                // Update GPS stamps from server response
+                if (result.photo) {
+                    if (result.photo.new_gps_datestamp !== undefined) {
+                        state.photos[state.editingPhotoIndex].new_gps_datestamp = result.photo.new_gps_datestamp;
+                    }
+                    if (result.photo.new_gps_timestamp !== undefined) {
+                        state.photos[state.editingPhotoIndex].new_gps_timestamp = result.photo.new_gps_timestamp;
+                    }
+                }
             }
             if (state.filteredPhotos[state.selectedPhotoIndex]) {
                 state.filteredPhotos[state.selectedPhotoIndex].new_offset_time = updateData.new_offset_time || null;
+                // Update GPS stamps from server response
+                if (result.photo) {
+                    if (result.photo.new_gps_datestamp !== undefined) {
+                        state.filteredPhotos[state.selectedPhotoIndex].new_gps_datestamp = result.photo.new_gps_datestamp;
+                    }
+                    if (result.photo.new_gps_timestamp !== undefined) {
+                        state.filteredPhotos[state.selectedPhotoIndex].new_gps_timestamp = result.photo.new_gps_timestamp;
+                    }
+                }
             }
             
             // Refresh the display

@@ -834,8 +834,8 @@ class PhotoManager:
         if time_changed or (title_changed and '{title}' in self.filename_format):
             new_name = self._generate_new_filename(index, self.filename_format)
             self.pd_photo_info.at[index, 'new_name'] = new_name
-            # Note: We don't call _deduplicate_filenames() here as it's a single photo
-            # The user can preview/apply format to check for duplicates
+            # Deduplicate the single photo's filename
+            self._deduplicate_single_photo_filename(index)
         
         return True
     
@@ -952,9 +952,81 @@ class PhotoManager:
         """Set the filename format"""
         self.filename_format = format_str
     
+    def _deduplicate_single_photo_filename(self, index: int):
+        """
+        Check if a single photo's new_name conflicts with other photos
+        and append a 2-digit number with underscore (_01, _02, etc.) if needed.
+        Comparison is case-insensitive for Windows compatibility.
+        
+        Args:
+            index: Index of the photo to deduplicate
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return
+        
+        current_name = self.pd_photo_info.at[index, 'new_name']
+        if not current_name or pd.isna(current_name):
+            return
+        
+        name_path = Path(current_name)
+        base_name = name_path.stem
+        extension = name_path.suffix
+        base_name_lower = base_name.lower()
+        
+        # Find all photos that might conflict:
+        # 1. Photos with exact same name (case-insensitive)
+        # 2. Photos with same base name + _NN suffix (_01, _02, etc.)
+        conflicting_photos = []
+        used_numbers = set()
+        
+        import re
+        
+        for idx in self.pd_photo_info.index:
+            if idx == index:  # Skip the current photo
+                continue
+                
+            other_name = self.pd_photo_info.at[idx, 'new_name']
+            if not other_name or pd.isna(other_name):
+                continue
+            
+            other_path = Path(other_name)
+            other_stem = other_path.stem
+            other_ext = other_path.suffix
+            
+            # Skip if different extension
+            if other_ext.lower() != extension.lower():
+                continue
+            
+            other_stem_lower = other_stem.lower()
+            
+            # Check for exact match
+            if other_stem_lower == base_name_lower:
+                conflicting_photos.append(idx)
+            # Check if it's base name + _NN (2-digit number)
+            elif other_stem_lower.startswith(base_name_lower):
+                suffix = other_stem[len(base_name):]
+                match = re.match(r'^_(\d{2})$', suffix)
+                if match:
+                    conflicting_photos.append(idx)
+                    used_numbers.add(int(match.group(1)))
+        
+        # If there are conflicts, append a number to the current photo
+        if conflicting_photos:
+            # Find the first available number starting from 1
+            number = 1
+            while number in used_numbers:
+                number += 1
+                if number > 99:  # Safety check
+                    number = 99
+                    break
+            
+            # Append the number to the current photo
+            new_name_with_suffix = f"{base_name}_{number:02d}{extension}"
+            self.pd_photo_info.at[index, 'new_name'] = new_name_with_suffix
+    
     def _deduplicate_filenames(self):
         """
-        Handle duplicate filenames by appending letters (a, b, c, etc.)
+        Handle duplicate filenames by appending 2-digit numbers (_01, _02, etc.)
         Comparison is case-insensitive for Windows compatibility
         """
         if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
@@ -969,7 +1041,7 @@ class PhotoManager:
         for lower_name, group in name_groups:
             if len(group) > 1:
                 # Multiple photos have the same name (case-insensitive)
-                # Append letters a, b, c, etc. to all but the first
+                # Append _01, _02, _03, etc. to all but the first
                 for i, idx in enumerate(group.index):
                     if i > 0:  # Skip the first one (keep original name)
                         old_name = self.pd_photo_info.at[idx, 'new_name']
@@ -978,10 +1050,8 @@ class PhotoManager:
                         base_name = name_path.stem
                         extension = name_path.suffix
                         
-                        # Append letter (a, b, c, etc.)
-                        # chr(97) is 'a', chr(98) is 'b', etc.
-                        letter = chr(96 + i)  # 96 + 1 = 97 = 'a'
-                        new_name = f"{base_name}{letter}{extension}"
+                        # Append 2-digit number (_01, _02, etc.)
+                        new_name = f"{base_name}_{i:02d}{extension}"
                         
                         self.pd_photo_info.at[idx, 'new_name'] = new_name
                         # Update the temporary lowercase column too

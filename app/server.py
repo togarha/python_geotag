@@ -666,7 +666,16 @@ async def update_photo_metadata(index: int, request: PhotoMetadataUpdate):
             index, request.new_time, request.new_title, gpx_manager, request.new_offset_time,
             request.new_city, request.new_sublocation, request.new_state, request.new_country
         )
-        return {"success": True}
+        
+        # Return the updated photo data
+        photo_row = photo_manager.pd_photo_info.iloc[index]
+        photo = {
+            'new_name': photo_row['new_name'],
+            'new_gps_datestamp': photo_row['new_gps_datestamp'] if not pd.isna(photo_row['new_gps_datestamp']) else None,
+            'new_gps_timestamp': photo_row['new_gps_timestamp'] if not pd.isna(photo_row['new_gps_timestamp']) else None,
+        }
+        
+        return {"success": True, "photo": photo}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -246,7 +246,7 @@ class ExportManager:
                                 iptc['country/primary location name'] = country
                             
                             # Try to save - this may fail if IPTC data is corrupt
-                            iptc.save()
+                            iptc.save(['overwrite'])
                     except:
                         # If loading or saving fails (corrupt IPTC data), rebuild from scratch
                         with suppress_stderr():
@@ -263,7 +263,7 @@ class ExportManager:
                                 iptc['country/primary location name'] = country
                             
                             # Save with fresh IPTC data
-                            iptc.save()
+                            iptc.save(['overwrite'])
                 except Exception as iptc_error:
                     # IPTC writing is optional - don't fail the entire export if it doesn't work
                     pass

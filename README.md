@@ -22,6 +22,8 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
   - **Updates GPS timestamps**: GPSDateStamp and GPSTimeStamp
   - **Updates Offset Time**: OffsetTime, OffsetTimeOriginal, OffsetTimeDigitized (via exiftool)
   - **Updates IPTC location metadata**: City, Sub-location, Province/State, Country
+  - **Updates Keywords**: IPTC tag (2:25), XMP dc:subject, XMP pdf:Keywords
+  - **Updates XMP metadata**: Title, Keywords (multi-format), Location fields via exiftool
   - Sets file creation and modification timestamps (cross-platform)
   - Uses new filename if configured
   - Conflict detection prevents accidental overwrites
@@ -30,8 +32,9 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
 - **Cache-Busting**: Automatic thumbnail and image refresh with timestamp parameters
 - **Cross-Platform**: Works on Windows, Mac, and Linux with proper EXIF handling
 - **Photo Renaming**: Configurable filename format with EXIF capture time or file creation time fallback
-- **Metadata Editing**: Edit photo title and timestamp individually with modal interface
+- **Metadata Editing**: Edit photo title, timestamp, and keywords individually with modal interface
 - **Title Management**: Extract and edit ImageDescription from EXIF metadata
+- **Keywords Management**: Extract, edit, and bulk-apply keywords (comma-separated)
 
 ### 🗺️ GPS & Geotagging
 - **Triple Map Providers**: Switch between OpenStreetMap, ESRI World Imagery (Satellite), and Google Maps
@@ -79,6 +82,7 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
   - Shows Current Value and New Value for all metadata fields
   - 📋 **Copy icons** for quick copying from previous photo:
     - Image Title
+    - Keywords
     - EXIF Capture Time
     - Offset Time
     - City, Sub-location, State/Province, Country
@@ -452,7 +456,15 @@ See `test/resources/README.md` for detailed configuration documentation.
    - Failover to Photon if Nominatim unavailable
    - Location data saved to new_city, new_sublocation, new_state, new_country columns
 
-7. **Format Help**:
+7. **Photo Keywords Management**:
+   - **Apply to All Photos**: Set keywords for all photos at once
+   - **Apply to Tagged Photos**: Set keywords only for tagged photos
+   - **Clear Keywords**: Remove keywords from all photos
+   - Keywords populate the new_keywords column
+   - Comma-separated format supports multiple keywords
+   - Exports to IPTC tag (2:25), XMP dc:subject, and XMP pdf:Keywords
+
+8. **Format Help**:
    - Collapsible help section with format codes and examples
    - Click to expand/collapse
 
@@ -468,8 +480,8 @@ See `test/resources/README.md` for detailed configuration documentation.
    - Top right: EXIF metadata with Photo Information table
      - **Three columns**: Property, Current Value, New Value
      - **Fourth column**: Copy icons (📋) for quick data copying
-     - Displays: Filename, Image Title, File Creation Time, EXIF Capture Time, GPS Date/Time Stamp, Offset Time, City, Sub-location, State/Province, Country, EXIF Position
-     - New Value shows: new_name, new_title, new_time (if set), calculated GPS timestamps, offset time, location fields, final coordinates
+     - Displays: Filename, Image Title, Keywords, File Creation Time, EXIF Capture Time, GPS Date/Time Stamp, Offset Time, City, Sub-location, State/Province, Country, EXIF Position
+     - New Value shows: new_name, new_title, new_keywords (if set), new_time (if set), calculated GPS timestamps, offset time, location fields, final coordinates
      - **Copy from Previous**: Click 📋 icon to copy field value from previous photo in view
      - **Smart Filtering**: When photos are filtered, copies from previous visible photo
      - Tooltips: Hover over copy icons to see "Copy from previous photo"
@@ -479,18 +491,20 @@ See `test/resources/README.md` for detailed configuration documentation.
    - Click "✏️ Edit Time & Title" button in Photo Information panel
    - Modal window opens with editable fields:
      - **Photo Title**: Text input for title (blank to clear)
+     - **Photo Keywords**: Text input for comma-separated keywords
      - **Photo Date/Time**: datetime-local picker with seconds
      - **Location Fields**: City, Sub-location, State, Country
        - "Retrieve from GPS" button auto-fills from reverse geocoding
        - Manual entry also supported
        - "Apply Location Changes" button saves all location fields
    - Each section has its own "Apply" button for independent updates
-   - Changes update the new_title, new_time, and location columns
+   - Changes update the new_title, new_keywords, new_time, and location columns
    - Photo Information table updates immediately
    - Title states:
      - **N/A**: Not set (new_title is null)
      - **(blank)**: Intentionally cleared (new_title is empty string)
      - **value**: Custom title set
+   - Keywords format: Comma-separated (e.g., "vacation, beach, summer")
 
 4. **Map Provider Selection**:
    - Use the "Map:" dropdown to switch between OpenStreetMap, ESRI World Imagery, and Google Maps
@@ -531,6 +545,7 @@ See `test/resources/README.md` for detailed configuration documentation.
    **Quick Copy for All Fields (📋 icons in table)**
    - Click 📋 icon next to any field in Photo Information table to copy from previous photo:
      - **Image Title**: Copy title from previous photo
+     - **Keywords**: Copy keywords from previous photo
      - **EXIF Capture Time**: Copy timestamp (with automatic format conversion)
      - **Offset Time**: Copy timezone offset
      - **Location Fields**: Copy city, sub-location, state, country individually
@@ -583,6 +598,8 @@ Stores all photo information with the following columns:
 | new_state | string | User-modified or geocoded state |
 | exif_country | string | Country from IPTC tag 2:101 |
 | new_country | string | User-modified or geocoded country |
+| exif_keywords | string | Keywords from IPTC tag 2:25 (comma-separated) |
+| new_keywords | string | User-modified keywords (None if not set, "" if cleared) |
 | exif_latitude | float | GPS latitude from EXIF (-360 if none) |
 | exif_longitude | float | GPS longitude from EXIF (-360 if none) |
 | exif_altitude | float | GPS altitude from EXIF (None if none) |
@@ -641,9 +658,12 @@ Stores GPX track point information with time offset support:
 - `GET /api/photo-thumbnail/{index}` - Get photo thumbnail (with cache-busting)
 - `GET /api/photo-image/{index}` - Get full-size image (with cache-busting)
 - `POST /api/sort` - Set photo sort order
-- `POST /api/photos/{index}/metadata` - Update photo title, timestamp, and location metadata
+- `POST /api/photos/{index}/metadata` - Update photo title, keywords, timestamp, and location metadata
 - `POST /api/photos/{index}/retrieve-location` - Retrieve location for single photo from GPS
 - `POST /api/retrieve-location` - Bulk retrieve locations (all or tagged photos)
+- `POST /api/apply-photo-keywords` - Apply keywords to all photos
+- `POST /api/apply-photo-keywords-tagged` - Apply keywords to tagged photos only
+- `POST /api/clear-photo-keywords` - Clear keywords from all photos
 
 ### GPS & Geotagging
 - `POST /api/photos/{index}/manual-location` - Set manual GPS coordinates and altitude
@@ -680,6 +700,13 @@ Stores GPX track point information with time offset support:
   - Updates EXIF capture time
   - Updates EXIF offset time (via exiftool) if exiftool installed
   - Updates IPTC location metadata (City, Sub-location, State, Country)
+  - Updates IPTC keywords (tag 2:25, comma-separated list)
+  - Updates XMP metadata (via exiftool):
+    - dc:title (Dublin Core title)
+    - dc:subject (Dublin Core keywords, multi-valued)
+    - pdf:Keywords (Adobe PDF keywords, comma-separated string)
+    - iptc4xmpCore:Location (IPTC Extension sublocation)
+    - photoshop:City, State, Country (Adobe Photoshop namespace)
   - Sets file creation and modification timestamps (cross-platform)
   - Returns count of exported photos and any failures
   - Returns 409 Conflict if destination files already exist
@@ -807,6 +834,59 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - [x] ~~Filtered photo navigation fixes~~ ✅ Implemented in v1.8
 
 ## Recent Updates
+
+### Version 1.9 - Keywords Metadata & XMP Export Enhancement
+
+**Keywords Metadata Management**:
+- ✅ Extract keywords from IPTC tag (2:25) when scanning photos
+- ✅ Two dataframe columns: exif_keywords (read from photos) and new_keywords (user-modified)
+- ✅ Display keywords in Photo Information table with copy icon
+- ✅ Edit keywords for individual photos in Edit Metadata modal
+- ✅ Copy keywords from previous photo using 📋 icon
+- ✅ Bulk operations in Settings view:
+  - Apply keywords to all photos
+  - Apply keywords to tagged photos only
+  - Clear all keywords
+- ✅ Comma-separated format supports multiple keywords (e.g., "vacation, beach, summer")
+
+**Keywords Export to IPTC & XMP**:
+- ✅ Write keywords to IPTC tag (2:25) as comma-separated list
+- ✅ Write keywords to XMP dc:subject (Dublin Core, multi-valued)
+- ✅ Write keywords to XMP pdf:Keywords (Adobe PDF namespace, single string)
+- ✅ Triple-format export ensures maximum compatibility
+- ✅ Handles existing keywords when reading IPTC (bytes, list, string formats)
+
+**XMP Metadata Export Enhancement**:
+- ✅ Consolidated exiftool calls for efficiency
+- ✅ Write XMP title (dc:title) from photo title
+- ✅ Write XMP location metadata:
+  - iptc4xmpCore:Location (sublocation)
+  - photoshop:City, State, Country
+- ✅ Single exiftool command for OffsetTime + all XMP metadata
+- ✅ Standards-compliant XMP namespaces (Dublin Core, IPTC Extension, Adobe)
+
+**API Endpoints**:
+- ✅ Three new endpoints for keywords management:
+  - POST /api/apply-photo-keywords
+  - POST /api/apply-photo-keywords-tagged
+  - POST /api/clear-photo-keywords
+- ✅ Updated POST /api/photos/{index}/metadata to accept new_keywords parameter
+- ✅ Keywords passed through export pipeline (PhotoManager → ExportManager)
+
+**Technical Implementation**:
+- ✅ IPTC keywords extraction: handles bytes, list, and string formats
+- ✅ PhotoManager bulk methods: apply_photo_keywords(), apply_photo_keywords_tagged(), clear_photo_keywords()
+- ✅ ExportManager: _write_exiftool_metadata() consolidates XMP and OffsetTime writing
+- ✅ Frontend: Keywords input field with Apply button in Edit Metadata modal
+- ✅ Frontend: Keywords bulk controls in Settings view with progress feedback
+- ✅ State management: keywords tracked in both photos and filteredPhotos arrays
+
+**Documentation**:
+- ✅ Updated README with keywords feature description
+- ✅ Added keywords to data structure documentation
+- ✅ Added keywords API endpoints documentation
+- ✅ Updated export section with IPTC and XMP keywords details
+- ✅ Added XMP namespace documentation in code comments
 
 ### Version 1.8 - Copy from Previous & Filtered Photo Fixes
 

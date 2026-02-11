@@ -955,7 +955,7 @@ class PhotoManager:
     def _deduplicate_single_photo_filename(self, index: int):
         """
         Check if a single photo's new_name conflicts with other photos
-        and append a 2-digit number with underscore (_01, _02, etc.) if needed.
+        and append a 2-digit number with underscore (_02, _03, etc.) if needed.
         Comparison is case-insensitive for Windows compatibility.
         
         Args:
@@ -1012,8 +1012,8 @@ class PhotoManager:
         
         # If there are conflicts, append a number to the current photo
         if conflicting_photos:
-            # Find the first available number starting from 1
-            number = 1
+            # Find the first available number starting from 2
+            number = 2
             while number in used_numbers:
                 number += 1
                 if number > 99:  # Safety check
@@ -1026,7 +1026,8 @@ class PhotoManager:
     
     def _deduplicate_filenames(self):
         """
-        Handle duplicate filenames by appending 2-digit numbers (_01, _02, etc.)
+        Handle duplicate filenames by appending 2-digit numbers (_02, _03, etc.)
+        First duplicate gets no suffix, subsequent duplicates start at _02
         Comparison is case-insensitive for Windows compatibility
         """
         if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
@@ -1041,7 +1042,7 @@ class PhotoManager:
         for lower_name, group in name_groups:
             if len(group) > 1:
                 # Multiple photos have the same name (case-insensitive)
-                # Append _01, _02, _03, etc. to all but the first
+                # Append _02, _03, _04, etc. to all but the first
                 for i, idx in enumerate(group.index):
                     if i > 0:  # Skip the first one (keep original name)
                         old_name = self.pd_photo_info.at[idx, 'new_name']
@@ -1050,8 +1051,8 @@ class PhotoManager:
                         base_name = name_path.stem
                         extension = name_path.suffix
                         
-                        # Append 2-digit number (_01, _02, etc.)
-                        new_name = f"{base_name}_{i:02d}{extension}"
+                        # Append 2-digit number starting from _02 (_02, _03, etc.)
+                        new_name = f"{base_name}_{i+1:02d}{extension}"
                         
                         self.pd_photo_info.at[idx, 'new_name'] = new_name
                         # Update the temporary lowercase column too

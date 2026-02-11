@@ -430,8 +430,9 @@ See `test/resources/README.md` for detailed configuration documentation.
    - Click "Preview Names" to see first 20 photos old → new
    - Click "Apply Format" to update new_name column for all photos
    - Falls back to file creation time if EXIF capture time not available
-   - **Automatic Deduplication**: If multiple photos have same timestamp, letters (a, b, c) are appended automatically
-     - Example: `20260123_143052.jpg`, `20260123_143052a.jpg`, `20260123_143052b.jpg`
+   - **Automatic Deduplication**: If multiple photos have same timestamp, 2-digit numbers are appended automatically
+     - Example: `20260123_143052.jpg`, `20260123_143052_02.jpg`, `20260123_143052_03.jpg`
+     - First duplicate keeps original name, subsequent get _02, _03, _04, etc.
      - Case-insensitive comparison for Windows compatibility
 
 5. **Photo Title Management**:
@@ -594,7 +595,7 @@ Stores all photo information with the following columns:
 | final_latitude | float | **Active GPS latitude (cascade logic)** |
 | final_longitude | float | **Active GPS longitude (cascade logic)** |
 | final_altitude | float | **Active altitude (cascade logic)** |
-| new_name | string | Generated filename based on format (auto-deduplicated) |
+| new_name | string | Generated filename based on format (auto-deduplicated with _02, _03 suffixes) |
 | tagged | boolean | Tag status for filtering |
 | original_index | int | Original index before filtering (frontend) |
 
@@ -848,6 +849,25 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - ✅ Cursor pointer on hover for interactive feedback
 - ✅ Inline copy icons for seamless workflow
 
+**Map Provider Synchronization**:
+- ✅ Map provider selector added to Large Photo View
+- ✅ Three-way synchronization: Settings ↔ GPX View ↔ Large Photo View
+- ✅ Consistent map provider across all views
+- ✅ Automatic sync when changing provider in any view
+
+**Command Line Parameters**:
+- ✅ `--folder-path` parameter to override photo folder from config file
+- ✅ `--export-folder` parameter to override export folder from config file
+- ✅ CLI arguments take precedence over config file values
+- ✅ Example: `python main.py --config config.yaml --folder-path C:/Photos --export-folder C:/Export`
+
+**Single Photo Deduplication Fix**:
+- ✅ Fixed deduplication when editing individual photo metadata
+- ✅ Timestamp or title changes trigger automatic filename deduplication
+- ✅ Prevents export overwrites from duplicate filenames
+- ✅ Uses same _02, _03, etc. numbering as bulk deduplication
+- ✅ Backend returns updated filename to frontend for immediate display
+
 ### Version 1.7 - Location Metadata Management
 
 **IPTC/XMP Location Extraction**:
@@ -1024,7 +1044,8 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - ✅ Preview functionality showing first 20 photos (old → new)
 - ✅ Apply format updates new_name column for all photos
 - ✅ Automatic fallback to file creation time if no EXIF capture time
-- ✅ Smart deduplication: letters (a, b, c) appended to duplicate filenames
+- ✅ Smart deduplication: 2-digit numbers (_02, _03, etc.) appended to duplicate filenames
+- ✅ First duplicate keeps original name, subsequent get _02, _03, _04, etc.
 - ✅ Case-insensitive comparison for Windows compatibility
 - ✅ Extension preservation
 
@@ -1121,6 +1142,8 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - ✅ Fixed Mac EXIF GPS coordinate reading (Fraction objects)
 - ✅ Proper handling of different EXIF data formats
 - ✅ Altitude extraction with GPSAltitudeRef support
+- ✅ Smart deduplication: 2-digit numbers (_02, _03, etc.) appended to duplicate filenames
+- ✅ Case-insensitive filename comparison for Windows compatibility
 
 ### Bug Fixes
 - ✅ Fixed marker overlap visibility (final marker ring around manual marker)

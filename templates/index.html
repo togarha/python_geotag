@@ -208,6 +208,18 @@
                 </div>
                 
                 <div class="settings-section">
+                    <h3>Photo Keywords</h3>
+                    <div class="setting-item">
+                        <label for="photo-keywords">Set Keywords for All Photos:</label>
+                        <input type="text" id="photo-keywords" placeholder="Enter keywords (comma-separated)" class="format-input">
+                        <button id="apply-keywords" class="btn btn-primary">Apply to All</button>
+                        <button id="apply-keywords-tagged" class="btn btn-success">Apply to Tagged</button>
+                        <button id="clear-keywords" class="btn btn-secondary">Clear All Keywords</button>
+                    </div>
+                    <p class="help-text">Comma-separated keywords (e.g., vacation, beach, summer) for IPTC and XMP metadata.</p>
+                </div>
+                
+                <div class="settings-section">
                     <h3>Time Adjustment</h3>
                     <div class="setting-item">
                         <label for="time-offset">Time Offset (±HH:MM:SS):</label>
@@ -424,6 +436,14 @@
                         <button id="apply-title-btn" class="btn btn-primary btn-inline">Apply</button>
                     </div>
                     <small class="form-help">Leave empty to clear title</small>
+                </div>
+                <div class="form-group">
+                    <label for="edit-photo-keywords-input">Keywords:</label>
+                    <div class="form-group-inline">
+                        <input type="text" id="edit-photo-keywords-input" class="form-control" placeholder="Enter keywords (comma-separated)">
+                        <button id="apply-keywords-btn" class="btn btn-primary btn-inline">Apply</button>
+                    </div>
+                    <small class="form-help">Comma-separated keywords (e.g., vacation, beach, summer)</small>
                 </div>
                 <div class="form-group">
                     <label for="edit-photo-time-input">Photo Date/Time:</label>

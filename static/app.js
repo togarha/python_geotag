@@ -1288,6 +1288,9 @@ function initializeSettingsView() {
     const applyTitleBtn = document.getElementById('apply-title');
     const applyTitleTaggedBtn = document.getElementById('apply-title-tagged');
     const clearTitleBtn = document.getElementById('clear-title');
+    const applyKeywordsBtn = document.getElementById('apply-keywords');
+    const applyKeywordsTaggedBtn = document.getElementById('apply-keywords-tagged');
+    const clearKeywordsBtn = document.getElementById('clear-keywords');
     const applyTimeOffsetAllBtn = document.getElementById('apply-time-offset-all');
     const applyTimeOffsetTaggedBtn = document.getElementById('apply-time-offset-tagged');
     const applyTimeOffsetNotUpdatedBtn = document.getElementById('apply-time-offset-not-updated');
@@ -1308,6 +1311,9 @@ function initializeSettingsView() {
     applyTitleBtn.addEventListener('click', applyPhotoTitle);
     applyTitleTaggedBtn.addEventListener('click', applyPhotoTitleTagged);
     clearTitleBtn.addEventListener('click', clearPhotoTitles);
+    applyKeywordsBtn.addEventListener('click', applyPhotoKeywords);
+    applyKeywordsTaggedBtn.addEventListener('click', applyPhotoKeywordsTagged);
+    clearKeywordsBtn.addEventListener('click', clearPhotoKeywords);
     applyTimeOffsetAllBtn.addEventListener('click', applyTimeOffsetAll);
     applyTimeOffsetTaggedBtn.addEventListener('click', applyTimeOffsetTagged);
     applyTimeOffsetNotUpdatedBtn.addEventListener('click', applyTimeOffsetNotUpdated);
@@ -1661,6 +1667,107 @@ async function clearPhotoTitles() {
     } catch (error) {
         console.error('Error clearing titles:', error);
         alert('Error clearing titles: ' + error.message);
+    }
+}
+
+async function applyPhotoKeywords() {
+    const keywords = document.getElementById('photo-keywords').value.trim();
+    
+    if (!keywords) {
+        alert('Please enter keywords.');
+        return;
+    }
+    
+    if (!confirm(`This will set the new_keywords to "${keywords}" for all photos. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-photo-keywords', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: keywords })  // reusing title field
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully set keywords for ${result.count} photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying keywords: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying keywords:', error);
+        alert('Error applying keywords: ' + error.message);
+    }
+}
+
+async function applyPhotoKeywordsTagged() {
+    const keywords = document.getElementById('photo-keywords').value.trim();
+    
+    if (!keywords) {
+        alert('Please enter keywords.');
+        return;
+    }
+    
+    if (!confirm(`This will set the new_keywords to "${keywords}" for tagged photos only. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-photo-keywords-tagged', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: keywords })  // reusing title field
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully set keywords for ${result.count} tagged photos.`);
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error applying keywords: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error applying keywords to tagged photos:', error);
+        alert('Error applying keywords: ' + error.message);
+    }
+}
+
+async function clearPhotoKeywords() {
+    if (!confirm('This will clear the new_keywords for all photos. Continue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/clear-photo-keywords', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully cleared keywords for ${result.count} photos.`);
+            document.getElementById('photo-keywords').value = '';
+            // Reload photos if in thumbnails view
+            if (state.photos && state.photos.length > 0) {
+                await loadPhotos();
+            }
+        } else {
+            alert('Error clearing keywords: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error clearing keywords:', error);
+        alert('Error clearing keywords: ' + error.message);
     }
 }
 
@@ -2235,6 +2342,13 @@ function displayEXIFInfo(photo) {
             current: photo.exif_image_title || 'N/A',
             new: photo.new_title !== null && photo.new_title !== undefined ? (photo.new_title || '(blank)') : 'N/A',
             fieldName: 'title',
+            hasCopy: true
+        },
+        {
+            label: 'Keywords',
+            current: photo.exif_keywords || 'N/A',
+            new: photo.new_keywords !== null && photo.new_keywords !== undefined ? (photo.new_keywords || '(blank)') : 'N/A',
+            fieldName: 'keywords',
             hasCopy: true
         },
         {
@@ -2858,6 +2972,13 @@ async function copyFieldFromPrevious(fieldName) {
             updateData.new_title = valueToCopy || '';
             break;
             
+        case 'keywords':
+            valueToCopy = previousPhoto.new_keywords !== null && previousPhoto.new_keywords !== undefined 
+                ? previousPhoto.new_keywords 
+                : previousPhoto.exif_keywords;
+            updateData.new_keywords = valueToCopy || '';
+            break;
+            
         case 'capture_time':
             valueToCopy = previousPhoto.new_time || previousPhoto.exif_capture_time;
             if (!valueToCopy || valueToCopy === 'N/A') {
@@ -3243,6 +3364,7 @@ async function editPhotoMetadata() {
     // Format current values for display
     const currentTime = photo.new_time || photo.exif_capture_time;
     const currentTitle = photo.new_title || photo.exif_image_title || '';
+    const currentKeywords = photo.new_keywords || photo.exif_keywords || '';
     
     // Display current time in YYYY-MM-DD HH:MM:SS format
     let displayTime = '';
@@ -3300,6 +3422,7 @@ async function editPhotoMetadata() {
     document.getElementById('current-state-display').textContent = displayState;
     document.getElementById('current-country-display').textContent = displayCountry;
     document.getElementById('edit-photo-title-input').value = currentTitle;
+    document.getElementById('edit-photo-keywords-input').value = currentKeywords;
     document.getElementById('edit-photo-time-input').value = formattedTime;
     document.getElementById('edit-offset-time-input').value = currentOffset;
     document.getElementById('edit-city-input').value = currentCity;
@@ -3310,6 +3433,7 @@ async function editPhotoMetadata() {
     // Store current photo index for later use
     state.editingPhotoIndex = photoIndex;
     state.editingOriginalTitle = currentTitle;
+    state.editingOriginalKeywords = currentKeywords;
     state.editingOriginalTime = currentTime;
     state.editingOriginalOffset = currentOffset;
     state.editingOriginalCity = currentCity;
@@ -3327,6 +3451,7 @@ function initializeEditMetadataModal() {
     const closeBtn = document.getElementById('close-edit-metadata-modal');
     const closeModalBtn = document.getElementById('close-metadata-modal-btn');
     const applyTitleBtn = document.getElementById('apply-title-btn');
+    const applyKeywordsBtn = document.getElementById('apply-keywords-btn');
     const applyTimeBtn = document.getElementById('apply-time-btn');
     const applyOffsetBtn = document.getElementById('apply-offset-btn');
     const retrieveLocationBtn = document.getElementById('retrieve-location-btn');
@@ -3342,6 +3467,10 @@ function initializeEditMetadataModal() {
     
     applyTitleBtn.addEventListener('click', async () => {
         await applyTitleChange();
+    });
+    
+    applyKeywordsBtn.addEventListener('click', async () => {
+        await applyKeywordsChange();
     });
     
     applyTimeBtn.addEventListener('click', async () => {
@@ -3413,6 +3542,46 @@ async function applyTitleChange() {
     } catch (error) {
         console.error('Error updating title:', error);
         alert('Error updating title: ' + error.message);
+    }
+}
+
+async function applyKeywordsChange() {
+    const newKeywords = document.getElementById('edit-photo-keywords-input').value;
+    
+    // Only update if changed
+    if (newKeywords === state.editingOriginalKeywords) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/photos/${state.editingPhotoIndex}/metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_keywords: newKeywords })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Keywords updated successfully!');
+            state.editingOriginalKeywords = newKeywords;
+            
+            // Update the photo in state (both filtered and original arrays)
+            if (state.photos[state.editingPhotoIndex]) {
+                state.photos[state.editingPhotoIndex].new_keywords = newKeywords || null;
+            }
+            if (state.filteredPhotos[state.selectedPhotoIndex]) {
+                state.filteredPhotos[state.selectedPhotoIndex].new_keywords = newKeywords || null;
+            }
+            
+            // Refresh the display
+            await displayLargePhoto(state.selectedPhotoIndex);
+        } else {
+            alert('Error updating keywords: ' + (result.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error updating keywords:', error);
+        alert('Error updating keywords: ' + error.message);
     }
 }
 

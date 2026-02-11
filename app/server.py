@@ -65,6 +65,7 @@ class PhotoTitleRequest(BaseModel):
 class PhotoMetadataUpdate(BaseModel):
     new_time: Optional[str] = None
     new_title: Optional[str] = None
+    new_keywords: Optional[str] = None
     new_offset_time: Optional[str] = None
     new_city: Optional[str] = None
     new_sublocation: Optional[str] = None
@@ -586,6 +587,48 @@ async def apply_photo_title_tagged(request: PhotoTitleRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.post("/api/apply-photo-keywords")
+async def apply_photo_keywords(request: PhotoTitleRequest):
+    """
+    Apply keywords to all photos (updates new_keywords column)
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.apply_photo_keywords(request.title)  # reusing PhotoTitleRequest
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/apply-photo-keywords-tagged")
+async def apply_photo_keywords_tagged(request: PhotoTitleRequest):
+    """
+    Apply keywords to tagged photos only (updates new_keywords column)
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.apply_photo_keywords_tagged(request.title)  # reusing PhotoTitleRequest
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/clear-photo-keywords")
+async def clear_photo_keywords():
+    """
+    Clear all new_keywords values
+    """
+    try:
+        if photo_manager.pd_photo_info is None or len(photo_manager.pd_photo_info) == 0:
+            return {"success": False, "detail": "No photos loaded"}
+        
+        count = photo_manager.clear_photo_keywords()
+        return {"success": True, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/api/apply-time-offset")
 async def apply_time_offset(request: TimeOffsetRequest):
     """
@@ -664,6 +707,7 @@ async def update_photo_metadata(index: int, request: PhotoMetadataUpdate):
         
         photo_manager.update_photo_metadata(
             index, request.new_time, request.new_title, gpx_manager, request.new_offset_time,
+            request.new_keywords,
             request.new_city, request.new_sublocation, request.new_state, request.new_country
         )
         
@@ -881,6 +925,8 @@ async def export_photos(request: ExportRequest):
                     final_alt = None
                 
                 # Get location metadata (use new values if available, otherwise EXIF values)
+                title = photo.get('new_title') or photo.get('exif_image_title')
+                keywords = photo.get('new_keywords') or photo.get('exif_keywords')
                 city = photo.get('new_city') or photo.get('exif_city')
                 sublocation = photo.get('new_sublocation') or photo.get('exif_sublocation')
                 state = photo.get('new_state') or photo.get('exif_state')
@@ -900,6 +946,8 @@ async def export_photos(request: ExportRequest):
                     final_lon=final_lon,
                     final_alt=final_alt,
                     new_time=new_time,
+                    title=title,
+                    keywords=keywords,
                     city=city,
                     sublocation=sublocation,
                     state=state,

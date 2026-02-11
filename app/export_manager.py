@@ -46,6 +46,8 @@ class ExportManager:
                     final_lat: Optional[float] = None, final_lon: Optional[float] = None, 
                     final_alt: Optional[float] = None,
                     new_time: Optional[datetime] = None,
+                    title: Optional[str] = None,
+                    keywords: Optional[str] = None,
                     city: Optional[str] = None, sublocation: Optional[str] = None,
                     state: Optional[str] = None, country: Optional[str] = None,
                     gps_datestamp: Optional[str] = None, gps_timestamp: Optional[str] = None,
@@ -61,10 +63,12 @@ class ExportManager:
             final_lon: Final longitude (or None to keep original)
             final_alt: Final altitude (or None to keep original)
             new_time: New capture time (or None to keep original)
-            city: City for IPTC metadata
-            sublocation: Sub-location for IPTC metadata
-            state: State/Province for IPTC metadata
-            country: Country for IPTC metadata
+            title: Photo title for XMP metadata
+            keywords: Photo keywords for IPTC/XMP metadata
+            city: City for IPTC/XMP metadata
+            sublocation: Sub-location for IPTC/XMP metadata
+            state: State/Province for IPTC/XMP metadata
+            country: Country for IPTC/XMP metadata
             gps_datestamp: GPS date stamp (YYYY:MM:DD)
             gps_timestamp: GPS time stamp (HH:MM:SS)
             offset_time: Timezone offset (+HH:MM or -HH:MM)
@@ -85,7 +89,7 @@ class ExportManager:
             
             # Update EXIF data (this will re-save the file, potentially resetting timestamps)
             ExportManager._update_exif(str(dest_file), final_lat, final_lon, final_alt, new_time,
-                                      city, sublocation, state, country,
+                                      title, keywords, city, sublocation, state, country,
                                       gps_datestamp, gps_timestamp, offset_time)
             
             # Update file timestamps AFTER EXIF update (if new_time is provided)
@@ -101,12 +105,14 @@ class ExportManager:
     @staticmethod
     def _update_exif(file_path: str, latitude: Optional[float], longitude: Optional[float], 
                     altitude: Optional[float], capture_time: Optional[datetime],
+                    title: Optional[str] = None,
+                    keywords: Optional[str] = None,
                     city: Optional[str] = None, sublocation: Optional[str] = None,
                     state: Optional[str] = None, country: Optional[str] = None,
                     gps_datestamp: Optional[str] = None, gps_timestamp: Optional[str] = None,
                     offset_time: Optional[str] = None):
         """
-        Update EXIF data and IPTC location metadata in the exported photo without recompressing the image
+        Update EXIF data, IPTC location metadata, and XMP metadata in the exported photo without recompressing the image
         """
         try:
             # Load existing EXIF directly from file
@@ -228,12 +234,18 @@ class ExportManager:
                     piexif.insert(exif_bytes, file_path)
             
             # Update IPTC location metadata if any location field is provided
-            if any([city, sublocation, state, country]):
+            if any([keywords, city, sublocation, state, country]):
                 try:
                     # Try to load existing IPTC data first
                     try:
                         with suppress_stderr():
                             iptc = IPTCInfo(file_path, force=False)
+                            
+                            # Set keywords
+                            if keywords and keywords.strip():
+                                # Keywords can be comma-separated
+                                keyword_list = [kw.strip() for kw in keywords.split(',') if kw.strip()]
+                                iptc['keywords'] = keyword_list
                             
                             # Set location fields
                             if city and city.strip():
@@ -252,6 +264,11 @@ class ExportManager:
                         with suppress_stderr():
                             iptc = IPTCInfo(file_path, force=True)
                             
+                            # Set keywords
+                            if keywords and keywords.strip():
+                                keyword_list = [kw.strip() for kw in keywords.split(',') if kw.strip()]
+                                iptc['keywords'] = keyword_list
+                            
                             # Set location fields again
                             if city and city.strip():
                                 iptc['city'] = city
@@ -268,18 +285,31 @@ class ExportManager:
                     # IPTC writing is optional - don't fail the entire export if it doesn't work
                     pass
             
-            # Try to write offset time using exiftool if available (piexif doesn't support it)
-            if offset_time:
-                ExportManager._write_offset_time_exiftool(file_path, offset_time)
+            # Write XMP metadata and OffsetTime using exiftool (piexif doesn't support these)
+            ExportManager._write_exiftool_metadata(file_path, title, keywords, city, sublocation, state, country, offset_time)
             
         except Exception as e:
             print(f"Error updating EXIF for {file_path}: {e}")
     
     @staticmethod
-    def _write_offset_time_exiftool(file_path: str, offset_time: str):
+    def _write_exiftool_metadata(file_path: str, title: Optional[str] = None,
+                                 keywords: Optional[str] = None,
+                                 city: Optional[str] = None, sublocation: Optional[str] = None,
+                                 state: Optional[str] = None, country: Optional[str] = None,
+                                 offset_time: Optional[str] = None):
         """
-        Write OffsetTime EXIF tags using exiftool (piexif doesn't support these tags)
+        Write XMP metadata and OffsetTime EXIF tags using exiftool
+        (piexif doesn't support XMP or OffsetTime tags)
         Falls back gracefully if exiftool is not available
+        
+        XMP Tags written:
+        - dc:title (Dublin Core title)
+        - dc:subject (Dublin Core keywords, multi-valued)
+        - pdf:Keywords (Adobe PDF keywords, comma-separated string)
+        - iptc4xmpCore:Location (IPTC Extension sublocation)
+        - photoshop:City (Adobe Photoshop city)
+        - photoshop:State (Adobe Photoshop state)
+        - photoshop:Country (Adobe Photoshop country)
         """
         try:
             # Check if exiftool is available
@@ -291,38 +321,67 @@ class ExportManager:
             )
             
             if result.returncode != 0:
-                print(f"exiftool not available, skipping OffsetTime export")
-                return
+                return  # exiftool not available, skip silently
             
-            # Write all three offset time tags using exiftool
+            # Build command with all metadata to write
             # -overwrite_original avoids creating backup files
-            cmd = [
-                'exiftool',
-                '-overwrite_original',
-                f'-OffsetTime={offset_time}',
-                f'-OffsetTimeOriginal={offset_time}',
-                f'-OffsetTimeDigitized={offset_time}',
-                file_path
-            ]
+            cmd = ['exiftool', '-overwrite_original']
             
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            # Add OffsetTime tags if provided
+            if offset_time:
+                cmd.extend([
+                    f'-OffsetTime={offset_time}',
+                    f'-OffsetTimeOriginal={offset_time}',
+                    f'-OffsetTimeDigitized={offset_time}'
+                ])
             
-            # Only report errors, not success
-            if result.returncode != 0:
-                print(f"Warning: exiftool failed: {result.stderr}")
+            # Add XMP title (Dublin Core)
+            if title and title.strip():
+                cmd.append(f'-XMP:Title={title}')
+            
+            # Add XMP keywords (Dublin Core subject)
+            if keywords and keywords.strip():
+                # Keywords can be comma-separated
+                keyword_list = [kw.strip() for kw in keywords.split(',') if kw.strip()]
+                for keyword in keyword_list:
+                    cmd.append(f'-XMP:Subject+={keyword}')
                 
+                # Also add to PDF namespace Keywords field (single comma-separated string)
+                cmd.append(f'-XMP-pdf:Keywords={keywords.strip()}')
+            
+            # Add XMP location metadata (IPTC4XMP and Photoshop namespaces)
+            if sublocation and sublocation.strip():
+                cmd.append(f'-XMP:Location={sublocation}')
+            if city and city.strip():
+                cmd.append(f'-XMP:City={city}')
+            if state and state.strip():
+                cmd.append(f'-XMP:State={state}')
+            if country and country.strip():
+                cmd.append(f'-XMP:Country={country}')
+            
+            # Add the file path
+            cmd.append(file_path)
+            
+            # Only run exiftool if we have metadata to write
+            if len(cmd) > 3:  # More than just 'exiftool -overwrite_original filepath'
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                # Only report errors, not success
+                if result.returncode != 0:
+                    print(f"Warning: exiftool failed: {result.stderr}")
+                    
         except FileNotFoundError:
             # exiftool not installed, skip silently
             pass
         except subprocess.TimeoutExpired:
             print(f"Warning: exiftool timed out")
         except Exception as e:
-            print(f"Warning: Error writing OffsetTime: {e}")
+            print(f"Warning: Error writing exiftool metadata: {e}")
     
     @staticmethod
     def _set_file_times(file_path: Path, timestamp: datetime):

@@ -63,6 +63,8 @@ class PhotoManager:
             'new_offset_time': None,
             'exif_image_title': None,
             'new_title': None,
+            'exif_keywords': None,
+            'new_keywords': None,
             'exif_city': None,
             'exif_sublocation': None,
             'exif_state': None,
@@ -233,6 +235,23 @@ class PhotoManager:
                                 if (2, 101) in iptc_data:
                                     country = iptc_data[(2, 101)]
                                     info['exif_country'] = country.decode('utf-8', errors='ignore') if isinstance(country, bytes) else str(country)
+                                
+                                # IPTC Keywords: (2, 25)
+                                if (2, 25) in iptc_data:
+                                    keywords = iptc_data[(2, 25)]
+                                    if isinstance(keywords, bytes):
+                                        info['exif_keywords'] = keywords.decode('utf-8', errors='ignore')
+                                    elif isinstance(keywords, list):
+                                        # Keywords can be multiple values
+                                        decoded_keywords = []
+                                        for kw in keywords:
+                                            if isinstance(kw, bytes):
+                                                decoded_keywords.append(kw.decode('utf-8', errors='ignore'))
+                                            else:
+                                                decoded_keywords.append(str(kw))
+                                        info['exif_keywords'] = ', '.join(decoded_keywords)
+                                    else:
+                                        info['exif_keywords'] = str(keywords)
                     except:
                         pass  # IPTC data not available or error reading it
                         
@@ -632,6 +651,48 @@ class PhotoManager:
         
         return len(self.pd_photo_info)
     
+    def apply_photo_keywords(self, keywords: str) -> int:
+        """
+        Apply keywords to all photos (updates new_keywords column)
+        Returns count of photos updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        for index in range(len(self.pd_photo_info)):
+            self.pd_photo_info.at[index, 'new_keywords'] = keywords
+        
+        return len(self.pd_photo_info)
+    
+    def apply_photo_keywords_tagged(self, keywords: str) -> int:
+        """
+        Apply keywords to tagged photos only (updates new_keywords column)
+        Returns count of photos updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        count = 0
+        for index in range(len(self.pd_photo_info)):
+            if self.pd_photo_info.at[index, 'tagged']:
+                self.pd_photo_info.at[index, 'new_keywords'] = keywords
+                count += 1
+        
+        return count
+    
+    def clear_photo_keywords(self) -> int:
+        """
+        Clear all new_keywords values (set to None)
+        Returns count of photos updated
+        """
+        if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
+            return 0
+        
+        for index in range(len(self.pd_photo_info)):
+            self.pd_photo_info.at[index, 'new_keywords'] = None
+        
+        return len(self.pd_photo_info)
+    
     def apply_time_offset(self, offset_str: str, mode: str = 'all', gpx_manager=None) -> int:
         """
         Apply a time offset to photo times (updates new_time column)
@@ -765,9 +826,10 @@ class PhotoManager:
         return count
     
     def update_photo_metadata(self, index: int, new_time: str = None, new_title: str = None, gpx_manager=None, new_offset_time: str = None, 
+                            new_keywords: str = None,
                             new_city: str = None, new_sublocation: str = None, new_state: str = None, new_country: str = None) -> bool:
         """
-        Update new_time, new_title, new_offset_time, and/or location fields for a specific photo
+        Update new_time, new_title, new_offset_time, new_keywords, and/or location fields for a specific photo
         Also updates GPX matching and regenerates filename when time changes
         Args:
             index: Photo index
@@ -775,6 +837,7 @@ class PhotoManager:
             new_title: Title string or None to keep unchanged
             gpx_manager: GPXManager instance for re-matching photos
             new_offset_time: Offset time string (e.g., "+02:00") or None to keep unchanged
+            new_keywords: Keywords string or None to keep unchanged
             new_city, new_sublocation, new_state, new_country: Location strings or None to keep unchanged
         Returns:
             True if successful
@@ -803,6 +866,10 @@ class PhotoManager:
             # Keep empty string as empty string (don't convert to None)
             self.pd_photo_info.at[index, 'new_title'] = new_title
             title_changed = True
+        
+        if new_keywords is not None:
+            # Keep empty string as empty string (don't convert to None)
+            self.pd_photo_info.at[index, 'new_keywords'] = new_keywords
         
         if new_offset_time is not None:
             if new_offset_time == "":  # Empty string means clear/set to None

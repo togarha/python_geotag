@@ -11,6 +11,7 @@ from pydantic import BaseModel
 import pandas as pd
 import json
 import math
+from datetime import datetime
 
 from .photo_manager import PhotoManager
 from .gpx_manager import GPXManager
@@ -843,6 +844,18 @@ async def get_config_info():
 async def export_photos(request: ExportRequest):
     """
     Export photos with updated metadata - streaming progress updates
+    
+    Exports photos to the configured export folder with updated EXIF, IPTC, and XMP metadata.
+    Also exports a CSV file containing the complete photo dataframe for all exported photos.
+    
+    The CSV file is named: photo_metadata_YYYYMMDD_HHMMSS.csv
+    It contains all dataframe columns including:
+    - Filenames (original and new)
+    - All GPS coordinates (EXIF, GPX, manual, final)
+    - All timestamps and metadata
+    - Location fields (city, sublocation, state, country)
+    - Keywords and title
+    - All other photo metadata
     """
     import json
     import asyncio
@@ -964,6 +977,21 @@ async def export_photos(request: ExportRequest):
                 
                 # Small delay to ensure progress updates are sent
                 await asyncio.sleep(0.01)
+            
+            # Export photo metadata dataframe to CSV file
+            # This provides a complete record of all metadata for the exported photos
+            try:
+                # Generate timestamped filename
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                csv_filename = f"photo_metadata_{timestamp}.csv"
+                csv_path = export_path / csv_filename
+                
+                # Export dataframe (includes all columns: GPS, metadata, timestamps, etc.)
+                photos_df.to_csv(csv_path, index=False)
+            except Exception as e:
+                # CSV export is optional - don't fail the entire export if it fails
+                # The photo files have already been successfully exported
+                pass
             
             # Send final completion message
             message = f"Exported {exported_count} photos"

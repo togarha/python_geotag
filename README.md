@@ -24,6 +24,7 @@ A powerful web-based photo geotagging application built with Python and FastAPI.
   - **Updates IPTC location metadata**: City, Sub-location, Province/State, Country
   - **Updates Keywords**: IPTC tag (2:25), XMP dc:subject, XMP pdf:Keywords
   - **Updates XMP metadata**: Title, Keywords (multi-format), Location fields via exiftool
+  - **Exports metadata CSV**: Saves photo_metadata_YYYYMMDD_HHMMSS.csv with all dataframe columns
   - Sets file creation and modification timestamps (cross-platform)
   - Uses new filename if configured
   - Conflict detection prevents accidental overwrites
@@ -318,12 +319,26 @@ See `test/resources/README.md` for detailed configuration documentation.
    - **Set Export Folder** in Settings view
    - **Export All Photos**: Exports all currently visible photos
    - **Export Tagged Photos**: Exports only tagged photos
-   - **What gets updated**:
+   - **What gets exported**:
+     - Photo files with updated metadata (see below)
+     - CSV file: `photo_metadata_YYYYMMDD_HHMMSS.csv` containing complete dataframe of exported photos
+   - **What gets updated in photos**:
      - New filename (if configured via renaming format)
      - GPS coordinates and altitude in EXIF (from final_latitude, final_longitude, final_altitude)
+     - GPS timestamps (GPSDateStamp, GPSTimeStamp calculated from local time and offset)
      - Capture time in EXIF (from new_time or exif_capture_time)
+     - Offset Time tags via exiftool (OffsetTime, OffsetTimeOriginal, OffsetTimeDigitized)
+     - Title in EXIF ImageDescription
+     - Keywords in IPTC tag (2:25), XMP dc:subject, and XMP pdf:Keywords
+     - Location metadata in IPTC tags (City, Sub-location, State, Country)
+     - Location metadata in XMP (iptc4xmpCore:Location, photoshop:City/State/Country)
      - File creation timestamp (cross-platform)
      - File modification timestamp (cross-platform)
+   - **CSV Dataframe Export**:
+     - Timestamped filename: `photo_metadata_YYYYMMDD_HHMMSS.csv`
+     - Contains all columns for exported photos (GPS coordinates, metadata, timestamps, etc.)
+     - Useful for record-keeping, analysis, and reference
+     - Saved in the same export folder as the photos
    - **Conflict Protection**: Checks for existing files before export, cancels if conflicts found
    - **Cross-Platform**:
      - Windows: Uses Win32 API for creation time
@@ -707,6 +722,7 @@ Stores GPX track point information with time offset support:
     - pdf:Keywords (Adobe PDF keywords, comma-separated string)
     - iptc4xmpCore:Location (IPTC Extension sublocation)
     - photoshop:City, State, Country (Adobe Photoshop namespace)
+  - Exports photo_metadata_YYYYMMDD_HHMMSS.csv with all dataframe columns
   - Sets file creation and modification timestamps (cross-platform)
   - Returns count of exported photos and any failures
   - Returns 409 Conflict if destination files already exist
@@ -782,6 +798,14 @@ geotag/
 ### Duplicate GPX tracks
 - The application automatically detects and skips duplicate track names
 - If you need to reload a track, remove it first then upload again
+
+### Export folder and files
+- **Photo Files**: Exported with updated filenames (if renaming is configured) and metadata
+- **CSV Metadata File**: `photo_metadata_YYYYMMDD_HHMMSS.csv` contains complete dataframe
+  - All columns: filenames, GPS coordinates (EXIF/GPX/manual/final), timestamps, metadata
+  - Useful for record-keeping, Excel analysis, or importing into other tools
+  - Automatically created in the export folder alongside photos
+- If CSV creation fails, photos still export successfully (CSV is optional)
 
 ### Map not displaying
 - **OpenStreetMap**: Should work without any configuration
@@ -887,6 +911,13 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - ✅ Added keywords API endpoints documentation
 - ✅ Updated export section with IPTC and XMP keywords details
 - ✅ Added XMP namespace documentation in code comments
+
+**CSV Metadata Export**:
+- ✅ Export photo dataframe as CSV file alongside photos
+- ✅ Timestamped filename: photo_metadata_YYYYMMDD_HHMMSS.csv
+- ✅ Includes all dataframe columns for the exported photos
+- ✅ Saved to export folder for easy reference
+- ✅ Silent fallback if CSV creation fails (doesn't block photo export)
 
 ### Version 1.8 - Copy from Previous & Filtered Photo Fixes
 

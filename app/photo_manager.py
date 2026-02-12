@@ -383,6 +383,23 @@ class PhotoManager:
             self.pd_photo_info.at[index, 'final_latitude'] = latitude
             self.pd_photo_info.at[index, 'final_longitude'] = longitude
     
+    def set_manual_location(self, index: int, latitude: float, longitude: float, altitude: float = None):
+        """Alias for update_manual_location - for test compatibility"""
+        self.update_manual_location(index, latitude, longitude, altitude)
+    
+    def bulk_tag(self, indices: list, tagged: bool):
+        """Update tagged status for multiple photos"""
+        if self.pd_photo_info is None:
+            raise ValueError("No photos loaded")
+        
+        for index in indices:
+            if index < len(self.pd_photo_info):
+                self.pd_photo_info.at[index, 'tagged'] = tagged
+    
+    def apply_filename_format(self, format_str: str) -> int:
+        """Alias for apply_rename_format - for test compatibility"""
+        return self.apply_rename_format(format_str)
+    
     def set_sort_order(self, sort_by: str):
         """Set the sort order and re-sort the DataFrame"""
         self.sort_by = sort_by
@@ -682,14 +699,14 @@ class PhotoManager:
     
     def clear_photo_keywords(self) -> int:
         """
-        Clear all new_keywords values (set to None)
+        Clear all new_keywords values (set to empty string)
         Returns count of photos updated
         """
         if self.pd_photo_info is None or len(self.pd_photo_info) == 0:
             return 0
         
         for index in range(len(self.pd_photo_info)):
-            self.pd_photo_info.at[index, 'new_keywords'] = None
+            self.pd_photo_info.at[index, 'new_keywords'] = ""
         
         return len(self.pd_photo_info)
     

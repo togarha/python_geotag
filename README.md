@@ -835,6 +835,44 @@ uv sync --dev
 uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 ```
 
+## Testing
+
+### Run Tests
+
+```powershell
+# Install test dependencies
+uv sync --dev
+
+# Run all tests
+uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+
+# Run specific test file
+uv run pytest test/test_photo_manager.py
+
+# Run with coverage
+uv run pytest --cov=app --cov-report=html
+```
+
+### Test Suite Coverage
+
+The test suite includes **129 comprehensive tests** (128 passing, 1 skipped):
+- **PhotoManager** (19 tests): Photo scanning, EXIF extraction, metadata operations, manual location setting, tagging & bulk operations, renaming
+- **GPXManager** (16 tests): GPX parsing (content-based API), time offsets, point matching, track management
+- **ExportManager** (18 tests): Photo export with GPS, metadata, timestamps, IPTC & XMP keywords
+- **ConfigManager** (44 tests): Configuration loading, saving, validation, persistence
+- **PositionsManager** (24 tests): Position file loading (content-based API), validation, management  
+- **Services** (24 tests): Elevation & geocoding APIs (fully mocked, no real API calls)
+
+All external API calls are mocked for fast, reliable testing without network dependencies.
+
+**Test Resources**: `test/resources/` contains sample photos, GPX files, and configuration files.  
+**Output Directory**: `test/output/` receives exported files and test artifacts.
+
+See [test/TEST_README.md](test/TEST_README.md) for detailed testing documentation.
+
 ## Future Enhancements
 
 - [ ] Support for RAW image formats
@@ -918,6 +956,22 @@ uv run uvicorn app.server:app --reload --host 127.0.0.1 --port 8000
 - ✅ Includes all dataframe columns for the exported photos
 - ✅ Saved to export folder for easy reference
 - ✅ Silent fallback if CSV creation fails (doesn't block photo export)
+
+**Comprehensive Test Suite**:
+- ✅ Added pytest testing framework with 8 comprehensive test modules
+- ✅ 129 tests covering all major functionality:
+  - test_photo_manager.py: Photo scanning, EXIF extraction, metadata, tagging, renaming, bulk operations
+  - test_gpx_manager.py: GPX parsing, matching, time offsets, track management
+  - test_export_manager.py: Photo export with GPS, metadata, timestamps
+  - test_config_manager.py: Configuration loading, saving, validation
+  - test_positions_manager.py: Position file loading and management
+  - test_services.py: Elevation & geocoding APIs (fully mocked)
+- ✅ Mocked external API calls (no network dependencies)
+- ✅ Test resources in test/resources/ with sample photos, GPX, configs
+- ✅ Isolated test output directory (test/output/)
+- ✅ Development dependencies: pytest, pytest-asyncio, pytest-mock
+- ✅ Comprehensive test documentation (test/TEST_README.md)
+- ✅ 128 tests passing, 1 skipped, 0 failures
 
 ### Version 1.8 - Copy from Previous & Filtered Photo Fixes
 

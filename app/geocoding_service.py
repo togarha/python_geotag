@@ -38,6 +38,10 @@ class GeocodingService:
                 
                 if result:
                     return result
+                    
+                # Provider returned None, try next provider
+                self.current_provider_index = (self.current_provider_index + 1) % len(self.providers)
+                    
             except Exception as e:
                 print(f"Error with {provider}: {e}")
                 # Try next provider
